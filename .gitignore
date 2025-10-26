@@ -2,3 +2,8 @@
 venv/
 .env*
 # Ignore all .env files (including variants like .env.local, .env.production, etc.)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
