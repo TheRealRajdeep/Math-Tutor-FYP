@@ -3,6 +3,13 @@ from db import get_db_connection
 
 router = APIRouter()
 
+def parse_domains(domain_string: str) -> list:
+    """Parse comma-separated domain string into list of unique domains"""
+    if not domain_string or not domain_string.strip():
+        return []
+    domains = [d.strip() for d in domain_string.split(',')]
+    return list(set([d for d in domains if d]))
+
 @router.get("/mock_test")
 def generate_mock_test(difficulty: str, domain: str | None = None):
     """
@@ -13,11 +20,16 @@ def generate_mock_test(difficulty: str, domain: str | None = None):
     cur = conn.cursor()
 
     if domain:
+        # Use array functions to search within domains
         cur.execute("""
             SELECT problem_id, domain, problem, solution, answer, difficulty_level, created_at
             FROM omni_math_data
-            WHERE LOWER(domain) LIKE LOWER(%s)
-              AND difficulty_level = %s
+            WHERE EXISTS (
+                SELECT 1 
+                FROM unnest(string_to_array(domain, ',')) AS d
+                WHERE LOWER(TRIM(d)) LIKE LOWER(%s)
+            )
+            AND difficulty_level = %s
             ORDER BY RANDOM()
             LIMIT 10;
         """, (f"%{domain}%", difficulty))
@@ -40,7 +52,7 @@ def generate_mock_test(difficulty: str, domain: str | None = None):
     problems = [
         {
             "problem_id": row[0],
-            "domain": row[1],
+            "domain": parse_domains(row[1]),  # Parse to array
             "problem": row[2],
             "solution": row[3],
             "answer": row[4],
