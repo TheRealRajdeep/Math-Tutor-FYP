@@ -1,19 +1,20 @@
-import psycopg2
+# db_connection.py
 import os
 from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-# Load environment variables from .env file
 load_dotenv()
 
 def get_db_connection():
+    """Return a new connection using DATABASE_URL (Neon URI)."""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL not set in environment")
+
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            dbname=os.getenv("DB_NAME", "your_db_name"),
-            user=os.getenv("DB_USER", "your_user"),
-            password=os.getenv("DB_PASSWORD", "your_password"),
-            port=os.getenv("DB_PORT", 5432)
-        )
+        # psycopg2 accepts a libpq-style URI (postgresql://...)
+        conn = psycopg2.connect(database_url)
         return conn
     except psycopg2.Error as e:
-        raise Exception(f"Database connection failed: {str(e)}")
+        raise Exception(f"Database connection failed: {e}")
