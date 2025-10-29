@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routes import problems
+from .routes import problems  
 
 app = FastAPI(
     title="AI Olympiad Tutor API",
