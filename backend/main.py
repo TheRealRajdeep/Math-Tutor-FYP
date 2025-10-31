@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from routes.problems import problems
 from routes.rag import rag
 from routes.mock_test import mock_test_generation as mock_test
@@ -12,6 +13,11 @@ app = FastAPI(
     version="1.0.0"
 )
 print("Server Started")
+
+# Mount static files for storage folder - reuse the same function from upload.py
+storage_path = submissions_upload.ensure_storage_dir()
+app.mount("/storage", StaticFiles(directory=storage_path), name="storage")
+
 app.include_router(problems.router, prefix="/api")
 app.include_router(mock_test.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")

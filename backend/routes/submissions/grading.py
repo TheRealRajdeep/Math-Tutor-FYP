@@ -18,7 +18,7 @@ def grade_submission(submission_id: int):
                 # fetch all problem submissions for this submission
                 cur.execute(
                     """
-                    SELECT ps.problem_id, ps.student_solution, oml.answer, oml.solution, oml.domain
+                    SELECT ps.problem_id, ps.student_solution, ps.student_answer, oml.answer, oml.solution, oml.domain
                     FROM problem_submissions ps
                     JOIN omni_math_data oml ON oml.problem_id = ps.problem_id
                     WHERE ps.submission_id = %s
@@ -30,9 +30,9 @@ def grade_submission(submission_id: int):
                     raise HTTPException(status_code=404, detail="No problem submissions found")
 
                 total_percentage = 0.0
-                for problem_id, student_solution, correct_answer, ref_solution, domain in rows:
-                    # answer correctness (student_answer not explicitly extracted; use last line heuristic)
-                    student_answer = student_solution or ""
+                for problem_id, student_solution, student_answer, correct_answer, ref_solution, domain in rows:
+                    # Use extracted student_answer if available, otherwise fallback to solution text
+                    student_answer = student_answer or student_solution or ""
 
                     ar = verify_answer_correctness(student_answer, correct_answer)
                     sr = verify_solution_logical_flow(student_solution or "", ref_solution or "", correct_answer or "")

@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS problem_submissions (
   problem_id INTEGER NOT NULL,
   image_url JSONB DEFAULT '[]'::jsonb,
   ocr_text TEXT,
-  latex_output TEXT,
   student_answer TEXT,
   student_solution TEXT,
   ocr_processed_at TIMESTAMP,

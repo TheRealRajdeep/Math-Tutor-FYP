@@ -3,8 +3,9 @@ from fastapi.responses import JSONResponse
 from db import get_db_connection
 import os
 import json
+import re
 import logging
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from services.mathpix_service import extract_text_from_image
 from services.embedding_service import generate_embedding
@@ -19,6 +20,64 @@ def ensure_storage_dir() -> str:
     return storage_path
 
 
+def extract_answer_from_text(ocr_text: str) -> Optional[str]:
+    """
+    Extract the answer from OCR text by looking for answer keywords.
+    Looks for patterns like: "ans:", "answer:", "Answer:", "Ans:", etc.
+    Returns the extracted answer or None if not found.
+    """
+    if not ocr_text:
+        return None
+    
+    # Normalize text: convert to lowercase for matching, but preserve original for extraction
+    text_lower = ocr_text.lower()
+    
+    # Patterns to look for (case-insensitive)
+    # Common patterns: "ans:", "answer:", "final answer:", "answer is", etc.
+    patterns = [
+        r'answer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'ans\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'final\s+answer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'answer\s+is\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'ans\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'answer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
+    ]
+    
+    # Try each pattern (case-insensitive)
+    for pattern in patterns:
+        matches = re.finditer(pattern, ocr_text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        for match in matches:
+            answer = match.group(1).strip()
+            # Clean up common trailing punctuation and whitespace
+            answer = re.sub(r'[.,;:]+\s*$', '', answer)
+            answer = answer.strip()
+            
+            # Skip if answer is too short or empty
+            if len(answer) > 0:
+                # Remove common prefixes that might have been captured
+                answer = re.sub(r'^(is|equals?|=\s*)', '', answer, flags=re.IGNORECASE).strip()
+                if len(answer) > 0:
+                    return answer
+    
+    # Fallback: look for patterns at the end of text (often answers are at the end)
+    # Check last few lines for answer indicators
+    lines = ocr_text.split('\n')
+    # Check last 3 lines
+    for line in reversed(lines[-3:]):
+        line_lower = line.lower().strip()
+        # Look for lines that start with answer keywords
+        if line_lower.startswith(('ans:', 'answer:', 'ans ', 'answer ')):
+            # Extract everything after the keyword
+            match = re.search(r'(?:ans|answer)\s*:?\s*(.+)', line, re.IGNORECASE)
+            if match:
+                answer = match.group(1).strip()
+                answer = re.sub(r'[.,;:]+\s*$', '', answer).strip()
+                if len(answer) > 0:
+                    return answer
+    
+    return None
+
+
 @router.post("/submit_solution")
 async def submit_solution(
     test_id: int = Form(...),
@@ -31,7 +90,6 @@ async def submit_solution(
     
     storage_dir = ensure_storage_dir()
     all_ocr_text = []
-    all_latex = []
     image_paths = []
     timestamp = int(datetime.utcnow().timestamp())
 
@@ -87,12 +145,9 @@ async def submit_solution(
                             continue
                         
                         ocr_text = ocr.get("text", "")
-                        ocr_latex = ocr.get("latex", "")
                         
                         if ocr_text:
                             all_ocr_text.append(ocr_text)
-                        if ocr_latex:
-                            all_latex.append(ocr_latex)
                             
                     except Exception as e:
                         logger.error(f"Error processing image {idx+1}: {str(e)}")
@@ -112,20 +167,27 @@ async def submit_solution(
                 else:
                     combined_text = "\n\n".join(all_ocr_text) if all_ocr_text else ""
                 
-                combined_latex = "\n\n".join(all_latex)
+                logger.info(f"Combined OCR text length: {len(combined_text)} characters")
+                
+                # Extract answer from combined OCR text
+                extracted_answer = extract_answer_from_text(combined_text)
+                if extracted_answer:
+                    logger.info(f"Extracted answer for problem {problem_id}: {extracted_answer}")
+                else:
+                    logger.warning(f"Could not extract answer from OCR text for problem {problem_id}")
 
                 # Upsert problem submission with multiple images
                 cur.execute(
                     """
                     INSERT INTO problem_submissions 
-                    (submission_id, problem_id, image_url, ocr_text, latex_output, student_solution, ocr_processed_at)
+                    (submission_id, problem_id, image_url, ocr_text, student_solution, student_answer, ocr_processed_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (submission_id, problem_id)
                     DO UPDATE SET 
                         image_url = EXCLUDED.image_url,
-                        ocr_text = COALESCE(EXCLUDED.ocr_text, ''),
-                        latex_output = COALESCE(EXCLUDED.latex_output, ''),
-                        student_solution = COALESCE(EXCLUDED.student_solution, ''),
+                        ocr_text = COALESCE(EXCLUDED.ocr_text, problem_submissions.ocr_text),
+                        student_solution = COALESCE(EXCLUDED.student_solution, problem_submissions.student_solution),
+                        student_answer = COALESCE(EXCLUDED.student_answer, problem_submissions.student_answer),
                         ocr_processed_at = EXCLUDED.ocr_processed_at
                     """,
                     (
@@ -133,8 +195,8 @@ async def submit_solution(
                         problem_id,
                         json.dumps(image_paths),  # Store as JSON array
                         combined_text,
-                        combined_latex,
                         combined_text,
+                        extracted_answer,  # Store extracted answer
                         datetime.utcnow(),
                     ),
                 )
