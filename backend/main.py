@@ -1,5 +1,9 @@
 from fastapi import FastAPI
-from routes import problems, mock_test, rag
+from routes.problems import problems
+from routes.rag import rag
+from routes.mock_test import mock_test_generation as mock_test
+from routes.submissions import upload as submissions_upload
+from routes.submissions import grading as submissions_grading
 # from .routes import problems, mock_test, rag
 
 app = FastAPI(
@@ -7,7 +11,14 @@ app = FastAPI(
     description="APIs for Omni-MATH problem retrieval, mock generation, and RAG search",
     version="1.0.0"
 )
-
+print("Server Started")
 app.include_router(problems.router, prefix="/api")
 app.include_router(mock_test.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
+app.include_router(submissions_upload.router, prefix="/api")
+app.include_router(submissions_grading.router, prefix="/api")
+
+if __name__ == "__main__":
+    import uvicorn
+    # Run as a module from project root: uvicorn backend.main:app --reload
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

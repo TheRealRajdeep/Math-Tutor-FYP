@@ -3,10 +3,14 @@ from sentence_transformers import SentenceTransformer
 from db import get_db_connection
 
 router = APIRouter()
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = None
 
 @router.get("/search")
 def semantic_search(query: str, limit: int = 5):
+    global model
+    if model is None:
+        # Lazy-load model to avoid blocking app startup
+        model = SentenceTransformer("all-MiniLM-L6-v2")
     embedding = model.encode(query).tolist()
 
     conn = get_db_connection()

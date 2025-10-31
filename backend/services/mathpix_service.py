@@ -1,0 +1,39 @@
+import os
+import base64
+import requests
+import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+logger = logging.getLogger(__name__)
+MATHPIX_ENDPOINT = "https://api.mathpix.com/v3/text"
+
+
+def extract_text_from_image(image_path: str) -> dict:
+    app_id = os.getenv("MATHPIX_APP_ID")
+    app_key = os.getenv("MATHPIX_APP_KEY")
+    if not app_id or not app_key:
+        return {"text": "", "latex": "", "confidence": 0.0, "error": "MathPix credentials missing"}
+
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+
+    headers = {"app_id": app_id, "app_key": app_key}
+    payload = {
+        "src": f"data:image/png;base64,{img_b64}",
+        "formats": ["text", "latex_simplified"],
+        "rm_spaces": True,
+        "math_inline_delimiters": ["$", "$"]
+    }
+
+    try:
+        resp = requests.post(MATHPIX_ENDPOINT, json=payload, headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        text = data.get("text", "")
+        latex = data.get("latex_simplified", "")
+        return {"text": text, "latex": latex, "confidence": 1.0, "error": None}
+    except Exception as e:
+        return {"text": "", "latex": "", "confidence": 0.0, "error": str(e)}
+
+

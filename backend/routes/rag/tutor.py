@@ -1,5 +1,10 @@
+import os
+from dotenv import load_dotenv
 from openai import OpenAI
-client = OpenAI(api_key="YOUR_API_KEY")
+
+load_dotenv()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def generate_hint(student_query: str):
     similar_problems = semantic_search(student_query)
