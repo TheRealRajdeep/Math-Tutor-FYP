@@ -79,10 +79,9 @@ Only return valid JSON, no other text."""
         is_correct = result.get("is_correct", False)
         confidence = float(result.get("confidence", 0.0))
         reasoning = result.get("reasoning", "")
-        
         # If confidence is very high (>= 0.85), treat as correct even if OpenAI says false
         # This handles cases where OpenAI is overly strict about format but the math is correct
-        if not is_correct and confidence >= 0.85:
+        if is_correct and confidence >= 0.85:
             is_correct = True
             reasoning = reasoning + " (Marked as correct due to high confidence despite format differences)"
         

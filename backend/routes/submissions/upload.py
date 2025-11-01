@@ -41,23 +41,37 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
         r'answer\s+is\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'ans\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'answer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'=\s*(.+?)(?:\n|$|\.|,|;|$)',  # Last "=" sign of the final answer
+        r'=*(.+?)(?:\n|$|\.|,|;|$)',  # Last "=" sign of the final answer
+        r'[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═][\s]*(.+?)[\s]*[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═]',  # Answer in a box (box-drawing characters)
+        r'\[[\s]*(.+?)[\s]*\]',  # Answer in square brackets [answer]
+        r'\|[\s]*(.+?)[\s]*\|',  # Answer between vertical bars |answer|
     ]
     
     # Try each pattern (case-insensitive)
-    for pattern in patterns:
-        matches = re.finditer(pattern, ocr_text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-        for match in matches:
-            answer = match.group(1).strip()
-            # Clean up common trailing punctuation and whitespace
-            answer = re.sub(r'[.,;:]+\s*$', '', answer)
-            answer = answer.strip()
+    for pattern_idx, pattern in enumerate(patterns):
+        matches = list(re.finditer(pattern, ocr_text, re.IGNORECASE | re.MULTILINE | re.DOTALL))
+        
+        # For the "last equals sign" pattern, use the last match
+        if pattern_idx == 6 and matches:  # Pattern index 6 is the last "=" pattern
+            match = matches[-1]
+        elif matches:
+            # For other patterns, use the first match
+            match = matches[0]
+        else:
+            continue
             
-            # Skip if answer is too short or empty
+        answer = match.group(1).strip()
+        # Clean up common trailing punctuation and whitespace
+        answer = re.sub(r'[.,;:]+\s*$', '', answer)
+        answer = answer.strip()
+        
+        # Skip if answer is too short or empty
+        if len(answer) > 0:
+            # Remove common prefixes that might have been captured
+            answer = re.sub(r'^(is|equals?|=\s*)', '', answer, flags=re.IGNORECASE).strip()
             if len(answer) > 0:
-                # Remove common prefixes that might have been captured
-                answer = re.sub(r'^(is|equals?|=\s*)', '', answer, flags=re.IGNORECASE).strip()
-                if len(answer) > 0:
-                    return answer
+                return answer
     
     # Fallback: look for patterns at the end of text (often answers are at the end)
     # Check last few lines for answer indicators
@@ -171,6 +185,7 @@ async def submit_solution(
                 
                 # Extract answer from combined OCR text
                 extracted_answer = extract_answer_from_text(combined_text)
+                print(f"Extracted answer: {extracted_answer}")
                 if extracted_answer:
                     logger.info(f"Extracted answer for problem {problem_id}: {extracted_answer}")
                 else:
