@@ -69,7 +69,7 @@ def get_all_problems(limit: int = 10, offset: int = 0):
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT problem_id, domain, problem, solution, answer, difficulty_level, source, 땋ing, created_at
+            SELECT problem_id, domain, problem, solution, answer, difficulty_level, source, embedding, created_at
             FROM omni_math_data
             ORDER BY created_at DESC
             LIMIT %s OFFSET %s;

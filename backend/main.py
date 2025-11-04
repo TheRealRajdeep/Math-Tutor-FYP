@@ -1,3 +1,6 @@
+import torchvision
+torchvision.disable_beta_transforms_warning()
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from routes.problems import problems
@@ -5,6 +8,7 @@ from routes.rag import rag
 from routes.mock_test import mock_test_generation as mock_test
 from routes.submissions import upload as submissions_upload
 from routes.submissions import grading as submissions_grading
+from fastapi.middleware.cors import CORSMiddleware
 # from .routes import problems, mock_test, rag
 
 app = FastAPI(
@@ -13,6 +17,14 @@ app = FastAPI(
     version="1.0.0"
 )
 print("Server Started")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],       # <-- use specific origins in production
+    allow_credentials=False,   # set True only if you need cookies/auth
+    allow_methods=["*"],       # allow all HTTP methods
+    allow_headers=["*"],       # allow all headers
+)
 
 # Mount static files for storage folder - reuse the same function from upload.py
 storage_path = submissions_upload.ensure_storage_dir()

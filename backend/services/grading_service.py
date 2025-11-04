@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from services.embedding_service import generate_embedding
+from .embedding_service import generate_embedding
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
