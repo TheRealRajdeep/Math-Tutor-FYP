@@ -3,11 +3,11 @@ torchvision.disable_beta_transforms_warning()
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from routes.problems import problems
-from routes.rag import rag
-from routes.mock_test import mock_test_generation as mock_test
-from routes.submissions import upload as submissions_upload
-from routes.submissions import grading as submissions_grading
+from .routes.problems import problems
+from .routes.rag import rag
+from .routes.mock_test import mock_test_generation as mock_test
+from .routes.submissions import upload as submissions_upload
+from .routes.submissions import grading as submissions_grading
 from fastapi.middleware.cors import CORSMiddleware
 # from .routes import problems, mock_test, rag
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from db import get_db_connection
-from services.grading_service import (
+from backend.db import get_db_connection
+from backend.services.grading_service import (
     verify_answer_correctness,
     verify_solution_logical_flow,
     calculate_final_score,

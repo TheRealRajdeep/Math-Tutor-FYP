@@ -1,4 +1,6 @@
+bash.exe.stackdump
 
+venv/
 .venv/
 .env*
 # Ignore all .env files (including variants like .env.local, .env.production, etc.)
