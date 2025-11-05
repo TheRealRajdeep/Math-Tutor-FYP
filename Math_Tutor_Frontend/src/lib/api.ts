@@ -39,6 +39,30 @@ export interface GradingResult {
   error_summary?: string;
 }
 
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  school?: string | null;
+  date_of_birth?: string | null;
+  grade?: string | null;
+  is_active: boolean;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+  school?: string;
+  date_of_birth?: string;
+  grade?: string;
+}
+
 // API client with error handling
 async function apiRequest<T>(
   endpoint: string,
@@ -55,7 +79,16 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    const errorText = await response.text();
+    let errorMessage = `API error: ${response.statusText}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.detail || errorMessage;
+    } catch {
+      // If not JSON, use the text as is
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -136,6 +169,51 @@ export const api = {
     
     const data = await response.json();
     return typeof data === 'string' ? data : data.hint || data.message || 'Hint generated';
+  },
+
+  // Auth
+  login: async (email: string, password: string): Promise<Token> => {
+    // OAuth2PasswordRequestForm expects form-encoded data
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `API error: ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  signup: async (data: SignupData): Promise<User> => {
+    return apiRequest<User>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getCurrentUser: async (token: string): Promise<User> => {
+    return apiRequest<User>('/auth/me', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   },
 };
 
