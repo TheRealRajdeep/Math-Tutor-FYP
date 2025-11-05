@@ -213,4 +213,14 @@ button:focus-visible {
   .main-content {
     @apply p-6;
   }
+  
+  /* Hide scrollbar for navbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
 }
