@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional
-from db import get_db_connection
+from db.db_connection import get_db_connection
 from models.problem_model import Problem
 import json
 

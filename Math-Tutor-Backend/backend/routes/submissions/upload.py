@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
-from db import get_db_connection
+from db.db_connection import get_db_connection
 import os
 import json
 import re
