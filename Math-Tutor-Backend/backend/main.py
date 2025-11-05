@@ -9,6 +9,9 @@ from routes.mock_test import mock_test_generation as mock_test
 from routes.submissions import upload as submissions_upload
 from routes.submissions import grading as submissions_grading
 from fastapi.middleware.cors import CORSMiddleware
+from db.session import engine
+from db.base import Base
+from auth import routes as auth_routes
 # from .routes import problems, mock_test, rag
 
 app = FastAPI(
@@ -26,6 +29,9 @@ app.add_middleware(
     allow_headers=["*"],       # allow all headers
 )
 
+# Create tables if they do not exist (only for simple setups; prefer migrations in production)
+Base.metadata.create_all(bind=engine)
+
 # Mount static files for storage folder - reuse the same function from upload.py
 storage_path = submissions_upload.ensure_storage_dir()
 app.mount("/storage", StaticFiles(directory=storage_path), name="storage")
@@ -35,6 +41,7 @@ app.include_router(mock_test.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(submissions_upload.router, prefix="/api")
 app.include_router(submissions_grading.router, prefix="/api")
+app.include_router(auth_routes.router)
 
 if __name__ == "__main__":
     import uvicorn
