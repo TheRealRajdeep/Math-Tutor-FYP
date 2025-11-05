@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const MockTests = () => {
   const [tests, setTests] = useState<MockTest[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
 
   const generateNewTest = async () => {
     setLoading(true);
@@ -30,7 +30,7 @@ const MockTests = () => {
           <h1 className="text-3xl font-bold">Mock Tests</h1>
           <p className="text-muted-foreground">Practice with RMO Entry level mock tests</p>
         </div>
-        <Button onClick={generateNewTest} disabled={loading}>
+        <Button variant="default" onClick={generateNewTest} disabled={loading}>
           {loading ? 'Generating...' : 'Generate New Test'}
         </Button>
       </div>
@@ -41,7 +41,7 @@ const MockTests = () => {
           <Card>
             <CardContent className="py-10 text-center">
               <p className="text-muted-foreground mb-4">No tests generated yet.</p>
-              <Button onClick={generateNewTest} disabled={loading}>
+              <Button variant="default" onClick={generateNewTest} disabled={loading}>
                 Generate Your First Test
               </Button>
             </CardContent>
