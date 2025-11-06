@@ -66,16 +66,24 @@ export interface SignupData {
 // API client with error handling
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  token?: string | null
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+  
+  // Add auth token if provided
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -97,8 +105,12 @@ async function apiRequest<T>(
 // API functions
 export const api = {
   // Mock Tests
-  generateMockTest: async (): Promise<MockTest> => {
-    return apiRequest<MockTest>('/api/entry_mock_test');
+  generateMockTest: async (token?: string | null): Promise<MockTest> => {
+    return apiRequest<MockTest>('/api/entry_mock_test', {}, token);
+  },
+
+  getMockTests: async (token?: string | null): Promise<MockTest[]> => {
+    return apiRequest<MockTest[]>('/api/mock_tests', {}, token);
   },
 
   // Problems

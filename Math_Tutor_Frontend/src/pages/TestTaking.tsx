@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api, type Problem, type MockTest } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 // KaTeX
 import * as katex from 'katex';
@@ -129,6 +130,7 @@ function renderLaTeXToHTML(input: string): string {
 const TestTaking = () => {
   const { testId } = useParams<{ testId: string }>();
   const navigate = useNavigate();
+  const { token, user } = useAuth();
   const [test, setTest] = useState<MockTest | null>(null);
   const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -136,21 +138,28 @@ const TestTaking = () => {
 
   useEffect(() => {
     const fetchTest = async () => {
-      if (testId) {
-        try {
-          // TODO: Fetch test details from API
-          // For now, we'll generate a new test if needed
-          // In production, you'd fetch the test by ID
-          const newTest = await api.generateMockTest();
-          setTest(newTest);
-        } catch (error) {
-          console.error('Failed to load test:', error);
+      if (!testId || !token) {
+        return;
+      }
+
+      try {
+        // Fetch all tests and find the one matching testId
+        const allTests = await api.getMockTests(token);
+        const foundTest = allTests.find(t => t.test_id === parseInt(testId));
+        
+        if (foundTest) {
+          setTest(foundTest);
+        } else {
+          console.error('Test not found');
+          // Optionally navigate back or show error
         }
+      } catch (error) {
+        console.error('Failed to load test:', error);
       }
     };
     fetchTest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testId]);
+  }, [testId, token]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -159,11 +168,11 @@ const TestTaking = () => {
   };
 
   const handleSubmit = async () => {
-    if (!testId || !test || selectedFiles.length === 0) return;
+    if (!testId || !test || selectedFiles.length === 0 || !user) return;
 
     setSubmitting(true);
     try {
-      const studentId = 'student_1'; // TODO: Get from auth context
+      const studentId = `${user.id}`;
       await api.submitSolution(
         parseInt(testId),
         test.problems[currentProblemIndex].problem_id,
