@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,7 +82,13 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Math Tutor</CardTitle>
+          <div className="flex justify-center mb-4">
+            <img
+              src="/ChatGPT Image Nov 5, 2025, 04_39_40 PM.png"
+              alt="Math Tutor Logo"
+              className="h-24 w-auto object-contain"
+            />
+          </div>
           <CardDescription className="text-center">
             Sign in to your account or create a new one
           </CardDescription>
@@ -92,10 +98,22 @@ const Auth = () => {
             setActiveTab(v as 'login' | 'signup');
             setError(null);
           }}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+            <div className="flex justify-center mb-4">
+              <TabsList className="flex w-fit bg-transparent p-0 h-auto gap-6">
+                <TabsTrigger
+                  value="login"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none border-b-2 border-transparent px-2 py-1 text-sm"
+                >
+                  Login
+                </TabsTrigger>
+                <TabsTrigger
+                  value="signup"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none border-b-2 border-transparent px-2 py-1 text-sm"
+                >
+                  Sign Up
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {error && (
               <Alert variant="destructive" className="mt-4">
