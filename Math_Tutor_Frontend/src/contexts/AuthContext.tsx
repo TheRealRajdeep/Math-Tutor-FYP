@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { api, type User, type SignupData } from '@/lib/api';
 
 interface AuthContextType {
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tokenData = await api.login(email, password);
     setToken(tokenData.access_token);
     localStorage.setItem(TOKEN_KEY, tokenData.access_token);
-    
+
     // Fetch user data
     const userData = await api.getCurrentUser(tokenData.access_token);
     setUser(userData);
