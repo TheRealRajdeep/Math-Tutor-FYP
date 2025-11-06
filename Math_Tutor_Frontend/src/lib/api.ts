@@ -126,6 +126,10 @@ export const api = {
     }, token);
   },
 
+  getTestResults: async (testId: number, token?: string | null): Promise<GradingResult[]> => {
+    return apiRequest<GradingResult[]>(`/api/mock_tests/${testId}/results`, {}, token);
+  },
+
   // Problems
   getProblems: async (limit: number = 10, offset: number = 0): Promise<Problem[]> => {
     return apiRequest<Problem[]>(`/api/problems?limit=${limit}&offset=${offset}`);

@@ -269,7 +269,7 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
 def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user)):
     """
     Submit a test - marks test as completed and triggers grading.
-    Validates that all problems have been submitted before completing.
+    Allows early submission even if not all problems have been submitted.
     """
     conn = get_db_connection()
     
@@ -307,14 +307,17 @@ def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user))
             
             submission_row = cur.fetchone()
             if not submission_row:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="No submission found. Please submit solutions for all problems first."
-                )
+                # Create a test submission if it doesn't exist (for early submission)
+                cur.execute("""
+                    INSERT INTO test_submissions (test_id, student_id, status)
+                    VALUES (%s, %s, %s)
+                    RETURNING submission_id
+                """, (test_id, str(current_user.id), "processing"))
+                submission_id = cur.fetchone()[0]
+            else:
+                submission_id = submission_row[0]
             
-            submission_id = submission_row[0]
-            
-            # Check if all problems have been submitted
+            # Check how many problems have been submitted (for informational purposes)
             cur.execute("""
                 SELECT COUNT(DISTINCT problem_id) as submitted_count
                 FROM problem_submissions
@@ -324,11 +327,8 @@ def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user))
             submitted_count_row = cur.fetchone()
             submitted_count = submitted_count_row[0] if submitted_count_row else 0
             
-            if submitted_count < len(problem_ids):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Not all problems have been submitted. Submitted: {submitted_count}/{len(problem_ids)}"
-                )
+            # Allow submission even if not all problems are submitted (early submission)
+            # Grade only the problems that have been submitted
             
             # Update test status to completed
             cur.execute("""
@@ -394,13 +394,13 @@ def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user))
                                 score.get("percentage"),
                                 None,
                             ))
-                    
-                    # Mark submission as graded
-                    cur.execute(
-                        "UPDATE test_submissions SET status='graded' WHERE submission_id=%s",
-                        (submission_id,),
-                    )
-                    conn.commit()
+                
+                # Mark submission as graded (even if no problems were submitted/graded)
+                cur.execute(
+                    "UPDATE test_submissions SET status='graded' WHERE submission_id=%s",
+                    (submission_id,),
+                )
+                conn.commit()
             except Exception as grading_error:
                 # Log error but don't fail the submission
                 import logging
@@ -408,11 +408,21 @@ def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user))
                 logger.error(f"Error during grading for submission {submission_id}: {str(grading_error)}")
                 # Still return success since test was submitted
             
+            # Determine message based on submission status
+            if submitted_count == 0:
+                message = "Test submitted early (no problems submitted). Test marked as completed."
+            elif submitted_count < len(problem_ids):
+                message = f"Test submitted early ({submitted_count}/{len(problem_ids)} problems submitted). Grading initiated for submitted problems."
+            else:
+                message = "Test submitted successfully and grading initiated"
+            
             return {
                 "test_id": test_id,
                 "submission_id": submission_id,
                 "status": "completed",
-                "message": "Test submitted successfully and grading initiated"
+                "message": message,
+                "submitted_count": submitted_count,
+                "total_problems": len(problem_ids)
             }
             
         finally:
@@ -424,3 +434,74 @@ def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user))
     except Exception as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Error submitting test: {str(e)}")
+
+
+@router.get("/mock_tests/{test_id}/results")
+def get_test_grading_results(test_id: int, current_user: UserOut = Depends(get_current_user)):
+    """
+    Get grading results for a completed test.
+    Returns grading information for each problem including error_summary and answer_is_correct.
+    """
+    conn = get_db_connection()
+    
+    try:
+        cur = conn.cursor()
+        try:
+            # Check if test exists and belongs to user
+            cur.execute("""
+                SELECT test_id, student_id
+                FROM mock_tests
+                WHERE test_id = %s AND student_id = %s
+            """, (test_id, current_user.id))
+            
+            test_row = cur.fetchone()
+            if not test_row:
+                raise HTTPException(status_code=404, detail="Test not found or access denied")
+            
+            # Get submission_id for this test
+            cur.execute("""
+                SELECT submission_id FROM test_submissions
+                WHERE test_id = %s AND student_id = %s
+            """, (test_id, str(current_user.id)))
+            
+            submission_row = cur.fetchone()
+            if not submission_row:
+                # No submission found, return empty results
+                return []
+            
+            submission_id = submission_row[0]
+            
+            # Get grading results for all problems in this submission
+            cur.execute("""
+                SELECT gr.problem_id, gr.answer_is_correct, gr.answer_correctness,
+                       gr.logical_flow_score, gr.percentage, gr.first_error_step_index, gr.error_summary
+                FROM grading_results gr
+                WHERE gr.submission_id = %s
+                ORDER BY gr.problem_id
+            """, (submission_id,))
+            
+            rows = cur.fetchall()
+            results = [
+                {
+                    "problem_id": r[0],
+                    "answer_is_correct": r[1],
+                    "answer_confidence": r[2],
+                    "logical_flow_score": r[3],
+                    "percentage": r[4],
+                    "first_error_step_index": r[5],
+                    "error_summary": r[6],
+                }
+                for r in rows
+            ]
+            
+            return results
+            
+        finally:
+            cur.close()
+            conn.close()
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Error fetching grading results: {str(e)}")
