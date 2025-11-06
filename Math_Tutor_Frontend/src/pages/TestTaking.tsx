@@ -135,6 +135,8 @@ const TestTaking = () => {
   const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedProblems, setSubmittedProblems] = useState<Set<number>>(new Set());
+  const [submittingTest, setSubmittingTest] = useState(false);
 
   useEffect(() => {
     const fetchTest = async () => {
@@ -180,12 +182,16 @@ const TestTaking = () => {
         selectedFiles
       );
 
+      // Mark this problem as submitted
+      setSubmittedProblems((prev) => new Set(prev).add(test.problems[currentProblemIndex].problem_id));
+
       // Move to next problem or finish
       if (currentProblemIndex < test.problems.length - 1) {
         setCurrentProblemIndex((prev) => prev + 1);
         setSelectedFiles([]);
       } else {
-        navigate('/submissions');
+        // All problems submitted, show message
+        setSelectedFiles([]);
       }
     } catch (error) {
       console.error('Failed to submit:', error);
@@ -194,11 +200,29 @@ const TestTaking = () => {
     }
   };
 
+  const handleSubmitTest = async () => {
+    if (!testId || !test || !token) return;
+
+    setSubmittingTest(true);
+    try {
+      await api.submitTest(parseInt(testId), token);
+      // Navigate back to mock tests page to see results
+      navigate('/mock-tests');
+    } catch (error) {
+      console.error('Failed to submit test:', error);
+      alert('Failed to submit test. Please try again.');
+    } finally {
+      setSubmittingTest(false);
+    }
+  };
+
   if (!test) {
     return <div>Loading test...</div>;
   }
 
+  const allProblemsSubmitted = test.problems.every(p => submittedProblems.has(p.problem_id));
   const currentProblem = test.problems[currentProblemIndex];
+  const isCurrentProblemSubmitted = submittedProblems.has(currentProblem.problem_id);
 
   return (
     <div className="space-y-6">
@@ -229,9 +253,12 @@ const TestTaking = () => {
                         : 'hover:bg-accent'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Problem {index + 1}</span>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Problem {index + 1}</span>
+                  {submittedProblems.has(problem.problem_id) && (
+                    <Badge variant="secondary" className="text-xs">Submitted</Badge>
+                  )}
+                </div>
 
                     {/* <div className="flex gap-1 mt-2 flex-wrap">
                       {problem.domain.map((d) => (
@@ -267,19 +294,42 @@ const TestTaking = () => {
               </div>
 
               <div className="space-y-4">
+                {allProblemsSubmitted && (
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                      All problems submitted! You can now submit the test.
+                    </p>
+                    <Button 
+                      onClick={handleSubmitTest} 
+                      disabled={submittingTest}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      {submittingTest ? 'Submitting Test...' : 'Submit Test'}
+                    </Button>
+                  </div>
+                )}
+                
                 <div>
                   <label className="text-sm font-medium mb-2 block">Upload Solution Images</label>
-                  <Input type="file" multiple accept="image/*" onChange={handleFileSelect} />
+                  <Input type="file" multiple accept="image/*" onChange={handleFileSelect} disabled={isCurrentProblemSubmitted} />
                   {selectedFiles.length > 0 && (
                     <p className="text-sm text-muted-foreground mt-2">
                       {selectedFiles.length} file(s) selected
                     </p>
                   )}
+                  {isCurrentProblemSubmitted && (
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                      ✓ Solution submitted for this problem
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
-                  <Button onClick={handleSubmit} disabled={selectedFiles.length === 0 || submitting}>
-                    {submitting ? 'Submitting...' : 'Submit Solution'}
+                  <Button 
+                    onClick={handleSubmit} 
+                    disabled={selectedFiles.length === 0 || submitting || isCurrentProblemSubmitted}
+                  >
+                    {submitting ? 'Submitting...' : isCurrentProblemSubmitted ? 'Already Submitted' : 'Submit Solution'}
                   </Button>
                   {currentProblemIndex > 0 && (
                     <Button variant="outline" onClick={() => setCurrentProblemIndex((prev) => prev - 1)}>

@@ -19,6 +19,13 @@ export interface MockTest {
   total_questions: number;
   domain_distribution: Record<string, number>;
   problems: Problem[];
+  status?: 'not_started' | 'in_progress' | 'completed';
+  grade?: {
+    total_problems: number;
+    correct_answers: number;
+    average_percentage: number;
+    total_percentage: number;
+  };
 }
 
 export interface Submission {
@@ -111,6 +118,12 @@ export const api = {
 
   getMockTests: async (token?: string | null): Promise<MockTest[]> => {
     return apiRequest<MockTest[]>('/api/mock_tests', {}, token);
+  },
+
+  submitTest: async (testId: number, token?: string | null): Promise<{ test_id: number; submission_id: number; status: string; message: string }> => {
+    return apiRequest(`/api/mock_tests/${testId}/submit`, {
+      method: 'POST',
+    }, token);
   },
 
   // Problems

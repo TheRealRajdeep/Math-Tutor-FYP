@@ -2,6 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from db.db_connection import get_db_connection
 from auth.deps import get_current_user
 from schemas.auth import UserOut
+from services.grading_service import (
+    verify_answer_correctness,
+    verify_solution_logical_flow,
+    calculate_final_score,
+)
 import json
 
 router = APIRouter()
@@ -93,14 +98,15 @@ def generate_entry_mock_test(current_user: UserOut = Depends(get_current_user)):
         try:
             cur.execute(
                 """
-                INSERT INTO mock_tests (test_type, problems, student_id)
-                VALUES (%s, %s, %s)
+                INSERT INTO mock_tests (test_type, problems, student_id, status)
+                VALUES (%s, %s, %s, %s)
                 RETURNING test_id;
                 """,
                 (
                     "RMO Entry Mock Test",
                     json.dumps([{ "problem_id": p["problem_id"] } for p in all_problems]),
-                    current_user.id
+                    current_user.id,
+                    "not_started"
                 ),
             )
             test_id = cur.fetchone()[0]
@@ -136,9 +142,9 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
     try:
         cur = conn.cursor()
         try:
-            # Fetch all tests for this user
+            # Fetch all tests for this user with status
             cur.execute("""
-                SELECT test_id, test_type, created_at, problems
+                SELECT test_id, test_type, created_at, problems, COALESCE(status, 'not_started') as status
                 FROM mock_tests
                 WHERE student_id = %s
                 ORDER BY created_at DESC;
@@ -152,7 +158,7 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
             result = []
             
             for test_row in test_rows:
-                test_id, test_type, created_at, problems_json = test_row
+                test_id, test_type, created_at, problems_json, status = test_row
                 
                 # Parse the problems JSON to get problem IDs
                 problems_data = json.loads(problems_json) if isinstance(problems_json, str) else problems_json
@@ -202,6 +208,40 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
                 else:
                     difficulty_range = "N/A"
                 
+                # Get test submission and grades if test is completed
+                grade_info = None
+                if status == 'completed':
+                    # Get submission_id for this test and student
+                    cur.execute("""
+                        SELECT submission_id FROM test_submissions
+                        WHERE test_id = %s AND student_id = %s
+                        LIMIT 1
+                    """, (test_id, str(current_user.id)))
+                    submission_row = cur.fetchone()
+                    
+                    if submission_row:
+                        submission_id = submission_row[0]
+                        # Get grading results
+                        cur.execute("""
+                            SELECT 
+                                COUNT(*) as total_problems,
+                                COALESCE(SUM(CASE WHEN answer_is_correct THEN 1 ELSE 0 END), 0) as correct_answers,
+                                COALESCE(AVG(percentage), 0) as average_percentage,
+                                COALESCE(SUM(percentage), 0) as total_percentage
+                            FROM grading_results
+                            WHERE submission_id = %s
+                        """, (submission_id,))
+                        grade_row = cur.fetchone()
+                        
+                        if grade_row:
+                            total_graded, correct_count, avg_percentage, total_percentage = grade_row
+                            grade_info = {
+                                "total_problems": total_graded or 0,
+                                "correct_answers": correct_count or 0,
+                                "average_percentage": float(avg_percentage) if avg_percentage else 0.0,
+                                "total_percentage": float(total_percentage) if total_percentage else 0.0,
+                            }
+                
                 result.append({
                     "test_id": test_id,
                     "test_type": test_type,
@@ -210,6 +250,8 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
                     "domain_distribution": domain_counts,
                     "problems": all_problems,
                     "created_at": created_at.isoformat() if created_at else None,
+                    "status": status,
+                    "grade": grade_info,
                 })
             
             return result
@@ -221,3 +263,164 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
     except Exception as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Error fetching mock tests: {str(e)}")
+
+
+@router.post("/mock_tests/{test_id}/submit")
+def submit_test(test_id: int, current_user: UserOut = Depends(get_current_user)):
+    """
+    Submit a test - marks test as completed and triggers grading.
+    Validates that all problems have been submitted before completing.
+    """
+    conn = get_db_connection()
+    
+    try:
+        cur = conn.cursor()
+        try:
+            # Check if test exists and belongs to user
+            cur.execute("""
+                SELECT test_id, problems, COALESCE(status, 'not_started') as status
+                FROM mock_tests
+                WHERE test_id = %s AND student_id = %s
+            """, (test_id, current_user.id))
+            
+            test_row = cur.fetchone()
+            if not test_row:
+                raise HTTPException(status_code=404, detail="Test not found or access denied")
+            
+            _, problems_json, current_status = test_row
+            
+            if current_status == 'completed':
+                raise HTTPException(status_code=400, detail="Test already completed")
+            
+            # Parse problems to get problem IDs
+            problems_data = json.loads(problems_json) if isinstance(problems_json, str) else problems_json
+            problem_ids = [p["problem_id"] for p in problems_data]
+            
+            if not problem_ids:
+                raise HTTPException(status_code=400, detail="Test has no problems")
+            
+            # Get or create test submission
+            cur.execute("""
+                SELECT submission_id FROM test_submissions
+                WHERE test_id = %s AND student_id = %s
+            """, (test_id, str(current_user.id)))
+            
+            submission_row = cur.fetchone()
+            if not submission_row:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No submission found. Please submit solutions for all problems first."
+                )
+            
+            submission_id = submission_row[0]
+            
+            # Check if all problems have been submitted
+            cur.execute("""
+                SELECT COUNT(DISTINCT problem_id) as submitted_count
+                FROM problem_submissions
+                WHERE submission_id = %s AND problem_id = ANY(%s)
+            """, (submission_id, problem_ids))
+            
+            submitted_count_row = cur.fetchone()
+            submitted_count = submitted_count_row[0] if submitted_count_row else 0
+            
+            if submitted_count < len(problem_ids):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Not all problems have been submitted. Submitted: {submitted_count}/{len(problem_ids)}"
+                )
+            
+            # Update test status to completed
+            cur.execute("""
+                UPDATE mock_tests
+                SET status = 'completed'
+                WHERE test_id = %s
+            """, (test_id,))
+            
+            # Update submission status to processing (will be updated to graded after grading)
+            cur.execute("""
+                UPDATE test_submissions
+                SET status = 'processing'
+                WHERE submission_id = %s
+            """, (submission_id,))
+            
+            conn.commit()
+            
+            # Trigger grading
+            try:
+                # Grade all problems in the submission
+                cur.execute("""
+                    SELECT ps.problem_id, ps.student_solution, ps.student_answer, oml.answer, oml.solution, oml.domain
+                    FROM problem_submissions ps
+                    JOIN omni_math_data oml ON oml.problem_id = ps.problem_id
+                    WHERE ps.submission_id = %s
+                """, (submission_id,))
+                
+                rows = cur.fetchall()
+                
+                if rows:
+                    for problem_id, student_solution, student_answer, correct_answer, ref_solution, domain in rows:
+                        # Use extracted student_answer if available, otherwise fallback to solution text
+                        student_answer = student_answer or student_solution or ""
+                        
+                        ar = verify_answer_correctness(student_answer, correct_answer)
+                        sr = verify_solution_logical_flow(student_solution or "", ref_solution or "", correct_answer or "")
+                        score = calculate_final_score(ar, sr)
+                        
+                        # Check if grading already exists for this problem
+                        cur.execute("""
+                            SELECT result_id FROM grading_results
+                            WHERE submission_id = %s AND problem_id = %s
+                        """, (submission_id, problem_id))
+                        
+                        existing = cur.fetchone()
+                        
+                        if not existing:
+                            cur.execute("""
+                                INSERT INTO grading_results (
+                                  submission_id, problem_id, answer_correctness, answer_is_correct,
+                                  logical_flow_score, first_error_step_index, error_summary,
+                                  final_score, percentage, grading_breakdown
+                                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            """, (
+                                submission_id,
+                                problem_id,
+                                ar.get("confidence"),
+                                ar.get("is_correct"),
+                                sr.get("logical_score"),
+                                sr.get("first_error_step_index"),
+                                sr.get("error_summary"),
+                                score.get("final_score"),
+                                score.get("percentage"),
+                                None,
+                            ))
+                    
+                    # Mark submission as graded
+                    cur.execute(
+                        "UPDATE test_submissions SET status='graded' WHERE submission_id=%s",
+                        (submission_id,),
+                    )
+                    conn.commit()
+            except Exception as grading_error:
+                # Log error but don't fail the submission
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error during grading for submission {submission_id}: {str(grading_error)}")
+                # Still return success since test was submitted
+            
+            return {
+                "test_id": test_id,
+                "submission_id": submission_id,
+                "status": "completed",
+                "message": "Test submitted successfully and grading initiated"
+            }
+            
+        finally:
+            cur.close()
+            conn.close()
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Error submitting test: {str(e)}")

@@ -111,11 +111,39 @@ const MockTests = () => {
                       {test.total_questions} questions • Difficulty: {test.difficulty_range}
                     </CardDescription>
                   </div>
-                  <Badge variant="outline">Not Started</Badge>
+                  <div className="flex items-center gap-2">
+                    {test.status === 'completed' ? (
+                      <Badge variant="default" className="bg-green-600">Completed</Badge>
+                    ) : test.status === 'in_progress' ? (
+                      <Badge variant="secondary">In Progress</Badge>
+                    ) : (
+                      <Badge variant="outline">Not Started</Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {test.status === 'completed' && test.grade && (
+                    <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                      <h4 className="text-sm font-semibold mb-2 text-green-800 dark:text-green-200">Test Results</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Score: </span>
+                          <span className="font-semibold text-green-700 dark:text-green-300">
+                            {test.grade.correct_answers}/{test.grade.total_problems}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Average: </span>
+                          <span className="font-semibold text-green-700 dark:text-green-300">
+                            {test.grade.average_percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h4 className="text-sm font-medium mb-2">Domain Distribution:</h4>
                     <div className="flex gap-2 flex-wrap">
@@ -126,9 +154,16 @@ const MockTests = () => {
                       ))}
                     </div>
                   </div>
-                  <Button asChild>
-                    <Link to={`/mock-tests/${test.test_id}/take`}>Start Test</Link>
-                  </Button>
+                  {test.status !== 'completed' && (
+                    <Button asChild>
+                      <Link to={`/mock-tests/${test.test_id}/take`}>Start Test</Link>
+                    </Button>
+                  )}
+                  {test.status === 'completed' && (
+                    <Button asChild variant="outline">
+                      <Link to={`/mock-tests/${test.test_id}/take`}>View Test</Link>
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
