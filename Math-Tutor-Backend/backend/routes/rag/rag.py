@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from sentence_transformers import SentenceTransformer
-from db.db_connection import get_db_connection
+from ...db.db_connection import get_db_connection
 
 router = APIRouter()
 model = None
