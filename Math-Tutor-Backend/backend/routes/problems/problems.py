@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional
-from db.db_connection import get_db_connection
-from models.problem_model import Problem
+from ...db.db_connection import get_db_connection
+from ...models.problem_model import Problem
 import json
 
 router = APIRouter()
