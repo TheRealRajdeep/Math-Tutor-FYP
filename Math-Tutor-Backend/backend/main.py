@@ -17,16 +17,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 # Routes (adjust paths if your package layout differs)
-from .routes.problems import problems
-from .routes.rag import tutor
-from .routes.mock_test import mock_test_generation as mock_test
-from .routes.submissions import upload as submissions_upload
-from .routes.submissions import grading as submissions_grading
-from .auth import routes as auth_routes
+from routes.problems import problems
+from routes.rag import tutor
+from routes.mock_test import mock_test_generation as mock_test
+from routes.submissions import upload as submissions_upload
+from routes.submissions import grading as submissions_grading
+from auth import routes as auth_routes
 
 # DB / models
-from .db.session import engine
-from .db.base import Base
+from db.session import engine
+from db.base import Base
 
 # Logging
 logging.basicConfig(level=logging.INFO)
