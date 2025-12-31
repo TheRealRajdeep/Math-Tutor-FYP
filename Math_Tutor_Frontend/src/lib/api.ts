@@ -19,6 +19,13 @@ export interface MockTest {
   total_questions: number;
   domain_distribution: Record<string, number>;
   problems: Problem[];
+  status?: 'not_started' | 'in_progress' | 'completed';
+  grade?: {
+    total_problems: number;
+    correct_answers: number;
+    average_percentage: number;
+    total_percentage: number;
+  };
 }
 
 export interface Submission {
@@ -39,23 +46,64 @@ export interface GradingResult {
   error_summary?: string;
 }
 
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  school?: string | null;
+  date_of_birth?: string | null;
+  grade?: string | null;
+  is_active: boolean;
+}
+
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+  school?: string;
+  date_of_birth?: string;
+  grade?: string;
+}
+
 // API client with error handling
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  token?: string | null
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+  
+  // Add auth token if provided
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    const errorText = await response.text();
+    let errorMessage = `API error: ${response.statusText}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.detail || errorMessage;
+    } catch {
+      // If not JSON, use the text as is
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -64,8 +112,22 @@ async function apiRequest<T>(
 // API functions
 export const api = {
   // Mock Tests
-  generateMockTest: async (): Promise<MockTest> => {
-    return apiRequest<MockTest>('/api/entry_mock_test');
+  generateMockTest: async (token?: string | null): Promise<MockTest> => {
+    return apiRequest<MockTest>('/api/entry_mock_test', {}, token);
+  },
+
+  getMockTests: async (token?: string | null): Promise<MockTest[]> => {
+    return apiRequest<MockTest[]>('/api/mock_tests', {}, token);
+  },
+
+  submitTest: async (testId: number, token?: string | null): Promise<{ test_id: number; submission_id: number; status: string; message: string }> => {
+    return apiRequest(`/api/mock_tests/${testId}/submit`, {
+      method: 'POST',
+    }, token);
+  },
+
+  getTestResults: async (testId: number, token?: string | null): Promise<GradingResult[]> => {
+    return apiRequest<GradingResult[]>(`/api/mock_tests/${testId}/results`, {}, token);
   },
 
   // Problems
@@ -136,6 +198,51 @@ export const api = {
     
     const data = await response.json();
     return typeof data === 'string' ? data : data.hint || data.message || 'Hint generated';
+  },
+
+  // Auth
+  login: async (email: string, password: string): Promise<Token> => {
+    // OAuth2PasswordRequestForm expects form-encoded data
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `API error: ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  signup: async (data: SignupData): Promise<User> => {
+    return apiRequest<User>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getCurrentUser: async (token: string): Promise<User> => {
+    return apiRequest<User>('/auth/me', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   },
 };
 
