@@ -6,7 +6,7 @@ from typing import Optional
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
-from ..db.db_connection import get_db_connection
+from db.db_connection import get_db_connection
 import openai
 
 load_dotenv()

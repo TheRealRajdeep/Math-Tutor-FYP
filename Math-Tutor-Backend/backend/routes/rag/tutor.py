@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import logging
-from ...services.tutor_service import generate_hint_text  # adjust relative import if needed
+from services.tutor_service import generate_hint_text  # adjust relative import if needed
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

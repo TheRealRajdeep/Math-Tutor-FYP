@@ -1,7 +1,7 @@
 # backend/services/auth_service.py
 from sqlalchemy.orm import Session
-from ..models.user import User
-from ..auth.security import get_password_hash, verify_password
+from models.user import User
+from auth.security import get_password_hash, verify_password
 from typing import Optional
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:

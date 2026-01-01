@@ -1,14 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
-from ...db.db_connection import get_db_connection
+from db.db_connection import get_db_connection
 import os
 import json
 import re
 import logging
 from typing import List, Optional
 from datetime import datetime
-from ...services.mathpix_service import extract_text_from_image
-from ...services.embedding_service import generate_embedding
+from services.mathpix_service import extract_text_from_image
+from services.embedding_service import generate_embedding
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

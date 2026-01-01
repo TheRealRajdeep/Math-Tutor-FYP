@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import jwt  # PyJWT exceptions
 
-from ..db.session import get_db
-from ..services.auth_service import get_user
+from db.session import get_db
+from services.auth_service import get_user
 from .jwt_utils import decode_token
 
 # OAuth2PasswordBearer expects the Authorization header: "Authorization: Bearer <token>"

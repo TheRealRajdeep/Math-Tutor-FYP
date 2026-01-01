@@ -1,7 +1,7 @@
 # grading.py
 from fastapi import APIRouter, HTTPException
-from ...db.db_connection import get_db_connection
-from ...services.grading_service import (
+from db.db_connection import get_db_connection
+from services.grading_service import (
     verify_answer_correctness,
     verify_solution_logical_flow,
     calculate_final_score,
