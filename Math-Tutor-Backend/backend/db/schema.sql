@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS mock_tests (
   test_id SERIAL PRIMARY KEY,
   test_type TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  problems JSONB NOT NULL
+  problems JSONB NOT NULL,
+  student_id INTEGER REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Table: test_submissions

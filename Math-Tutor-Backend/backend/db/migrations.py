@@ -46,6 +46,73 @@ def run_alter_migration():
         conn.close()
 
 
+def run_status_migration():
+    """Run migration to add status column to mock_tests table"""
+    load_dotenv()
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL not set in environment")
+
+    conn = psycopg2.connect(database_url)
+    try:
+        # Set autocommit to True for DDL statements
+        conn.autocommit = True
+        cur = conn.cursor()
+        
+        try:
+            # First check if column already exists
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'mock_tests' 
+                AND column_name = 'status'
+            """)
+            
+            if cur.fetchone():
+                print("Status column already exists in mock_tests table")
+                return
+            
+            # Add the status column
+            print("Adding status column to mock_tests table...")
+            cur.execute("""
+                ALTER TABLE mock_tests 
+                ADD COLUMN status TEXT NOT NULL DEFAULT 'not_started';
+            """)
+            
+            # Create index for better query performance
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_mock_tests_status ON mock_tests(status);
+            """)
+            
+            # Verify the column was added
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'mock_tests' 
+                AND column_name = 'status'
+            """)
+            
+            if cur.fetchone():
+                print("✓ Migration completed: status column added to mock_tests table")
+            else:
+                print("✗ Warning: Migration executed but status column not found. Please check manually.")
+                
+        except psycopg2.errors.DuplicateColumn:
+            print("Status column already exists (detected via error)")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        finally:
+            cur.close()
+    except Exception as e:
+        print(f"Connection error: {e}")
+        raise
+    finally:
+        conn.close()
+
+
 def reset_sequences(truncate_tables=False):
     """
     Reset all sequences (submission_id, result_id, test_id, id) to start from 1.
@@ -119,6 +186,8 @@ if __name__ == "__main__":
         reset_sequences()
     elif len(sys.argv) > 1 and sys.argv[1] == "alter":
         run_alter_migration()
+    elif len(sys.argv) > 1 and sys.argv[1] == "status":
+        run_status_migration()
     else:
         run_migration()
 
