@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from db.db_connection import get_db_connection
 from auth.deps import get_current_user
 from schemas.auth import UserOut
