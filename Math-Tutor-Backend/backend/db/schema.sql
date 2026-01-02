@@ -128,3 +128,31 @@ CREATE TABLE IF NOT EXISTS practice_problem_attempts (
   time_taken_seconds INTEGER,
   attempted_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------
+-- Curriculum Feature Tables
+-- ---------------------------------------------------------
+
+-- Table: user_curriculum_selections
+CREATE TABLE IF NOT EXISTS user_curriculum_selections (
+  selection_id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  duration_months INTEGER NOT NULL CHECK (duration_months IN (1, 3, 6, 12)),
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  selected_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(student_id)
+);
+
+-- Table: daily_tasks
+CREATE TABLE IF NOT EXISTS daily_tasks (
+  task_id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_date DATE NOT NULL,
+  task_type TEXT NOT NULL CHECK (task_type IN ('practice_problem', 'study_material', 'topic_review')),
+  task_content JSONB NOT NULL,
+  is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  curriculum_duration_months INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(student_id, task_date, task_type, task_content)
+);

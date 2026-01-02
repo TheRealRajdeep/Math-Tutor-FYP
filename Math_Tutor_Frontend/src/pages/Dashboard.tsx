@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, TrendingUp, BookOpen, Flame } from 'lucide-react';
+import { FileText, TrendingUp, BookOpen, Flame, CheckCircle2, Circle, BookMarked, Target, ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { renderLaTeXToHTML } from '@/lib/latex';
 
 const Dashboard = () => {
   const { token } = useAuth();
@@ -19,6 +21,9 @@ const Dashboard = () => {
 
   const [showEntryTestModal, setShowEntryTestModal] = useState(false);
   const [pendingTestId, setPendingTestId] = useState<number | null>(null);
+  const [dailyTasks, setDailyTasks] = useState<any>(null);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [hasCurriculum, setHasCurriculum] = useState(false);
 
   useEffect(() => {
     // TODO: Fetch actual stats from API
@@ -53,6 +58,69 @@ const Dashboard = () => {
     };
     checkEntryTest();
   }, [token]);
+
+  useEffect(() => {
+    const fetchDailyTasks = async () => {
+      if (!token) return;
+      
+      try {
+        setLoadingTasks(true);
+        // Check if user has curriculum selection
+        const selection = await api.getMyCurriculumSelection(token);
+        setHasCurriculum(selection.has_selection || false);
+        
+        if (selection.has_selection) {
+          const tasks = await api.getDailyTasks(undefined, token);
+          setDailyTasks(tasks);
+        }
+      } catch (err) {
+        console.error("Failed to fetch daily tasks", err);
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+    
+    fetchDailyTasks();
+  }, [token]);
+
+  const handleCompleteTask = async (taskId: number) => {
+    if (!token) return;
+    
+    try {
+      await api.completeTask(taskId, token);
+      // Refresh tasks
+      const tasks = await api.getDailyTasks(undefined, token);
+      setDailyTasks(tasks);
+    } catch (err) {
+      console.error("Failed to complete task", err);
+    }
+  };
+
+  const getTaskIcon = (taskType: string) => {
+    switch (taskType) {
+      case 'practice_problem':
+        return BookOpen;
+      case 'study_material':
+        return BookMarked;
+      case 'topic_review':
+        return Target;
+      default:
+        return Circle;
+    }
+  };
+
+  const getTaskLabel = (taskType: string) => {
+    switch (taskType) {
+      case 'practice_problem':
+        return 'Practice Problem';
+      case 'study_material':
+        return 'Study Material';
+      case 'topic_review':
+        return 'Topic Review';
+      default:
+        return 'Task';
+    }
+  };
 
   const handleStartTest = () => {
     if (pendingTestId) {
@@ -131,6 +199,151 @@ const Dashboard = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Today's Tasks */}
+      {hasCurriculum ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Today's Tasks</CardTitle>
+            <CardDescription>
+              {dailyTasks && dailyTasks.tasks ? (
+                <>
+                  {dailyTasks.completed_tasks} of {dailyTasks.total_tasks} tasks completed
+                </>
+              ) : (
+                'Your daily learning tasks'
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingTasks ? (
+              <div className="text-sm text-muted-foreground">Loading tasks...</div>
+            ) : dailyTasks && dailyTasks.tasks && dailyTasks.tasks.length > 0 ? (
+              <div className="space-y-3">
+                {dailyTasks.tasks.map((task: any) => {
+                  const TaskIcon = getTaskIcon(task.task_type);
+                  const isCompleted = task.is_completed;
+                  const taskContent = typeof task.task_content === 'string' 
+                    ? JSON.parse(task.task_content) 
+                    : task.task_content;
+                  
+                  return (
+                    <div
+                      key={task.task_id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        isCompleted 
+                          ? 'bg-muted/50 border-muted' 
+                          : 'bg-background border-border'
+                      }`}
+                    >
+                      <div className="mt-1">
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <Circle 
+                            className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => handleCompleteTask(task.task_id)}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <TaskIcon className="h-4 w-4 text-muted-foreground" />
+                          <Badge variant="outline" className="text-xs">
+                            {getTaskLabel(task.task_type)}
+                          </Badge>
+                        </div>
+                        {task.task_type === 'practice_problem' && (
+                          <div>
+                            <div className="text-sm font-medium mb-1">
+                              Problem #{taskContent.problem_id}
+                            </div>
+                            <div className="prose prose-sm max-w-none mb-2">
+                              <div
+                                className="whitespace-pre-wrap"
+                                // eslint-disable-next-line react/no-danger
+                                dangerouslySetInnerHTML={{ 
+                                  __html: renderLaTeXToHTML(taskContent.problem_text || '') 
+                                }}
+                              />
+                            </div>
+                            {taskContent.domain && (
+                              <p className="text-xs text-muted-foreground mt-1 mb-1">
+                                Domain: {Array.isArray(taskContent.domain) 
+                                  ? taskContent.domain.join(', ') 
+                                  : taskContent.domain}
+                              </p>
+                            )}
+                            <Link 
+                              to={`/problems?problem_id=${taskContent.problem_id}`}
+                              className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
+                            >
+                              View Problem <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </div>
+                        )}
+                        {task.task_type === 'study_material' && (
+                          <div>
+                            <p className="text-sm font-medium">{taskContent.title}</p>
+                            {taskContent.snippet && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {taskContent.snippet}
+                              </p>
+                            )}
+                            {taskContent.url && (
+                              <a
+                                href={taskContent.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
+                              >
+                                Open Material <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {task.task_type === 'topic_review' && (
+                          <div>
+                            <p className="text-sm font-medium">{taskContent.description}</p>
+                            {taskContent.topics && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Topics: {Array.isArray(taskContent.topics) 
+                                  ? taskContent.topics.join(', ') 
+                                  : taskContent.topics}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No tasks for today. Tasks are generated automatically based on your progress.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Daily Tasks</CardTitle>
+            <CardDescription>Personalized learning tasks based on your weaknesses</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a curriculum plan to start receiving daily tasks tailored to your learning needs.
+              </p>
+              <Button asChild>
+                <Link to="/curriculum">Select Curriculum Plan</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Activity */}
       <Card>

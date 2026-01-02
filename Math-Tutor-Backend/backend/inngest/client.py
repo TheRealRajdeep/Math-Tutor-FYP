@@ -5,6 +5,7 @@ import inngest
 inngest_client = inngest.Inngest(
     app_id="math_tutor_backend",
     logger=logging.getLogger("uvicorn"),
+    is_production=False,
 )
 
 
