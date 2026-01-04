@@ -254,18 +254,23 @@ const Dashboard = () => {
                         </div>
                         {task.task_type === 'practice_problem' && (
                           <div>
-                            <div className="text-sm font-medium mb-1">
-                              Problem #{taskContent.problem_id}
-                            </div>
-                            <div className="prose prose-sm max-w-none mb-2">
-                              <div
-                                className="whitespace-pre-wrap"
-                                // eslint-disable-next-line react/no-danger
-                                dangerouslySetInnerHTML={{
-                                  __html: renderLaTeXToHTML(taskContent.problem_text || '')
-                                }}
-                              />
-                            </div>
+                            <Link
+                              to={`/problems?problem_id=${taskContent.problem_id}`}
+                              className="block group"
+                            >
+                              <div className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">
+                                Problem #{taskContent.problem_id}
+                              </div>
+                              <div className="prose prose-sm max-w-none mb-2">
+                                <div
+                                  className="whitespace-pre-wrap line-clamp-3"
+                                  // eslint-disable-next-line react/no-danger
+                                  dangerouslySetInnerHTML={{
+                                    __html: renderLaTeXToHTML(taskContent.problem_text || '')
+                                  }}
+                                />
+                              </div>
+                            </Link>
                             {taskContent.domain && (
                               <p className="text-xs text-muted-foreground mt-1 mb-1">
                                 Domain: {Array.isArray(taskContent.domain)
