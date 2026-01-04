@@ -18,4 +18,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    allowedHosts: ['math-tutor-fyp-frontend-production.up.railway.app'],
+  },
 })
