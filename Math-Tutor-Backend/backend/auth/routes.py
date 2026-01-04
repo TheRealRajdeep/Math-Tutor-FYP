@@ -60,7 +60,7 @@ async def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserO
     response_model=Token,
     summary="Login and receive an access token (OAuth2 password grant)",
 )
-def login(
+async def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ) -> Any:
     """
@@ -73,7 +73,7 @@ def login(
     Note: OAuth2PasswordRequestForm expects application/x-www-form-urlencoded.
     """
     # OAuth2PasswordRequestForm uses `username` and `password` fields.
-    user = authenticate_user(db, email=form_data.username, password=form_data.password)
+    user = await authenticate_user(db, email=form_data.username, password=form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
