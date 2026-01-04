@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { GraduationCap, Calendar, TrendingUp, AlertCircle } from 'lucide-react';
+import { GraduationCap, Calendar, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -36,7 +36,7 @@ const Curriculum = () => {
 
   const fetchSelection = async () => {
     if (!token) return;
-    
+
     try {
       setLoading(true);
       const data = await api.getMyCurriculumSelection(token);
@@ -177,7 +177,7 @@ const Curriculum = () => {
                     ⚠️ Important
                   </p>
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    This is a <strong>one-time selection</strong> and cannot be changed later. 
+                    This is a <strong>one-time selection</strong> and cannot be changed later.
                     Please choose carefully.
                   </p>
                 </div>

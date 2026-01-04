@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { api, type Problem, type MockTest, type GradingResult } from '@/lib/api';
+import { api, type MockTest, type GradingResult } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 // KaTeX
@@ -150,10 +150,10 @@ const TestTaking = () => {
         // Fetch all tests and find the one matching testId
         const allTests = await api.getMockTests(token);
         const foundTest = allTests.find(t => t.test_id === parseInt(testId));
-        
+
         if (foundTest) {
           setTest(foundTest);
-          
+
           // If test is completed, fetch grading results
           if (foundTest.status === 'completed') {
             setLoadingResults(true);
@@ -225,7 +225,7 @@ const TestTaking = () => {
     setSubmittingTest(true);
     try {
       await api.submitTest(parseInt(testId), token);
-      
+
       if (test.test_type === 'RMO Entry Mock Test') {
         navigate('/curriculum');
       } else {
@@ -309,28 +309,27 @@ const TestTaking = () => {
                     type="button"
                     key={problem.problem_id}
                     onClick={() => setCurrentProblemIndex(index)}
-                    className={`w-full text-left p-3 rounded transition ${
-                      index === currentProblemIndex
+                    className={`w-full text-left p-3 rounded transition ${index === currentProblemIndex
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-accent'
-                    }`}
+                      }`}
                   >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Problem {index + 1}</span>
-                  <div className="flex items-center gap-2">
-                    {isTestCompleted && gradingResults.has(problem.problem_id) && (
-                      <Badge 
-                        variant={gradingResults.get(problem.problem_id)?.answer_is_correct ? "default" : "destructive"}
-                        className={`text-xs ${gradingResults.get(problem.problem_id)?.answer_is_correct ? "bg-green-600" : "bg-red-600"}`}
-                      >
-                        {gradingResults.get(problem.problem_id)?.answer_is_correct ? "✓" : "✗"}
-                      </Badge>
-                    )}
-                    {!isTestCompleted && submittedProblems.has(problem.problem_id) && (
-                      <Badge variant="secondary" className="text-xs">Submitted</Badge>
-                    )}
-                  </div>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Problem {index + 1}</span>
+                      <div className="flex items-center gap-2">
+                        {isTestCompleted && gradingResults.has(problem.problem_id) && (
+                          <Badge
+                            variant={gradingResults.get(problem.problem_id)?.answer_is_correct ? "default" : "destructive"}
+                            className={`text-xs ${gradingResults.get(problem.problem_id)?.answer_is_correct ? "bg-green-600" : "bg-red-600"}`}
+                          >
+                            {gradingResults.get(problem.problem_id)?.answer_is_correct ? "✓" : "✗"}
+                          </Badge>
+                        )}
+                        {!isTestCompleted && submittedProblems.has(problem.problem_id) && (
+                          <Badge variant="secondary" className="text-xs">Submitted</Badge>
+                        )}
+                      </div>
+                    </div>
 
                     {/* <div className="flex gap-1 mt-2 flex-wrap">
                       {problem.domain.map((d) => (
@@ -368,17 +367,15 @@ const TestTaking = () => {
               <div className="space-y-4">
                 {/* Show grading results if test is completed */}
                 {isTestCompleted && currentProblemResult && (
-                  <div className={`p-4 rounded-lg border ${
-                    currentProblemResult.answer_is_correct 
+                  <div className={`p-4 rounded-lg border ${currentProblemResult.answer_is_correct
                       ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                       : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                  }`}>
+                    }`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-lg font-semibold ${
-                        currentProblemResult.answer_is_correct 
+                      <span className={`text-lg font-semibold ${currentProblemResult.answer_is_correct
                           ? 'text-green-800 dark:text-green-200'
                           : 'text-red-800 dark:text-red-200'
-                      }`}>
+                        }`}>
                         {currentProblemResult.answer_is_correct ? '✓ Correct' : '✗ Incorrect'}
                       </span>
                       <Badge variant="secondary" className="text-xs">
@@ -404,8 +401,8 @@ const TestTaking = () => {
                         <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
                           All problems submitted! You can now submit the test.
                         </p>
-                        <Button 
-                          onClick={handleSubmitTest} 
+                        <Button
+                          onClick={handleSubmitTest}
                           disabled={submittingTest}
                           className="w-full bg-green-600 hover:bg-green-700"
                         >
@@ -420,7 +417,7 @@ const TestTaking = () => {
                         </p>
                       </div>
                     )}
-                    
+
                     <div>
                       <label className="text-sm font-medium mb-2 block">Upload Solution Images</label>
                       <Input type="file" multiple accept="image/*" onChange={handleFileSelect} disabled={isCurrentProblemSubmitted} />
@@ -437,8 +434,8 @@ const TestTaking = () => {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button 
-                        onClick={handleSubmit} 
+                      <Button
+                        onClick={handleSubmit}
                         disabled={selectedFiles.length === 0 || submitting || isCurrentProblemSubmitted}
                       >
                         {submitting ? 'Submitting...' : isCurrentProblemSubmitted ? 'Already Submitted' : 'Submit Solution'}

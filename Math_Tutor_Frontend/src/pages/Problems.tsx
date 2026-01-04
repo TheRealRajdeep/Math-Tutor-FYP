@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api, type Problem, type GradingResult } from '@/lib/api';
 import { renderLaTeXToHTML } from '@/lib/latex';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle2, XCircle, Loader2, Upload } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 const Problems = () => {
   const { user } = useAuth();
@@ -16,7 +16,7 @@ const Problems = () => {
   const [loading, setLoading] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Submission state
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -99,7 +99,7 @@ const Problems = () => {
       // Assuming for now we can pass a dummy test ID (e.g. 0) or the backend handles practice mode.
       // If the backend strictly requires a valid test_id, we might need a dedicated endpoint for practice submissions.
       // Let's use a convention for practice submissions, or check if we need to adjust the API call.
-      
+
       // Checking api.ts, submitSolution takes testId. Let's use 0 for now as a placeholder for "Practice Mode" if backend supports it,
       // or we might need to modify the backend to accept nullable test_id.
       // Assuming the backend has a way to handle this, or we might catch an error.
@@ -113,7 +113,7 @@ const Problems = () => {
 
       // 2. Poll for grading result or trigger grading immediately
       // The submitSolution returns { submission_id, message }
-      
+
       // Trigger grading (often automatic, but let's be sure)
       await api.gradeSubmission(submission.submission_id);
 
@@ -261,9 +261,9 @@ const Problems = () => {
                   Solution Image
                 </label>
                 <div className="flex items-center gap-2">
-                  <Input 
-                    id="solution-image" 
-                    type="file" 
+                  <Input
+                    id="solution-image"
+                    type="file"
                     accept="image/*"
                     onChange={handleFileSelect}
                     disabled={isSubmitting}
@@ -278,46 +278,44 @@ const Problems = () => {
             </div>
           ) : (
             <div className="space-y-4 py-4">
-               <div className={`p-4 rounded-lg border ${
-                  submissionResult.answer_is_correct 
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              <div className={`p-4 rounded-lg border ${submissionResult.answer_is_correct
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                 }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {submissionResult.answer_is_correct ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    )}
-                    <span className={`text-lg font-semibold ${
-                      submissionResult.answer_is_correct 
-                        ? 'text-green-800 dark:text-green-200'
-                        : 'text-red-800 dark:text-red-200'
-                    }`}>
-                      {submissionResult.answer_is_correct ? 'Correct Answer' : 'Incorrect Answer'}
-                    </span>
-                  </div>
-                  
-                  <div className="mt-2 text-sm text-muted-foreground">
-                     <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
-                  </div>
-
-                  {submissionResult.error_summary && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <p className="text-sm font-medium mb-1">Feedback:</p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                        {submissionResult.error_summary}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-2 mb-2">
+                  {submissionResult.answer_is_correct ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                   )}
+                  <span className={`text-lg font-semibold ${submissionResult.answer_is_correct
+                    ? 'text-green-800 dark:text-green-200'
+                    : 'text-red-800 dark:text-red-200'
+                    }`}>
+                    {submissionResult.answer_is_correct ? 'Correct Answer' : 'Incorrect Answer'}
+                  </span>
                 </div>
+
+                <div className="mt-2 text-sm text-muted-foreground">
+                  <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
+                </div>
+
+                {submissionResult.error_summary && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-medium mb-1">Feedback:</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                      {submissionResult.error_summary}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           <DialogFooter>
             {!submissionResult ? (
-              <Button 
-                onClick={handleSubmitSolution} 
+              <Button
+                onClick={handleSubmitSolution}
                 disabled={selectedFiles.length === 0 || isSubmitting}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

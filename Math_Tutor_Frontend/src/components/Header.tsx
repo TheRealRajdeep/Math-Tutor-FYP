@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { NAV_ITEMS } from '@/lib/constants';
 import NavItems from './NavItems';
 import UserDropdown from './UserDropdown';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
