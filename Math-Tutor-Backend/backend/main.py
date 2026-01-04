@@ -50,9 +50,11 @@ logger.info("Server starting...")
 # CORS - tighten in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # <-- narrow this in production
-    allow_credentials=True,   # set True only if you need cookies/auth
-    allow_methods=["*"],
+    allow_origins=[
+        "https://math-tutor-fyp-frontend-production.up.railway.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
