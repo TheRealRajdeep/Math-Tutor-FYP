@@ -51,7 +51,7 @@ logger.info("Server starting...")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],       # <-- narrow this in production
-    allow_credentials=False,   # set True only if you need cookies/auth
+    allow_credentials=True,   # set True only if you need cookies/auth
     allow_methods=["*"],
     allow_headers=["*"],
 )
