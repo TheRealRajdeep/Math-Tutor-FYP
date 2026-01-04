@@ -1,6 +1,10 @@
 # backend/main.py
+from dotenv import load_dotenv
+load_dotenv()
+
 import logging
 import os
+import inngest.fast_api
 
 # Optional: handle environments where torchvision might not be present
 try:
@@ -12,6 +16,8 @@ except Exception:
     # don't fail startup if torchvision is missing
     pass
 
+from events.client import inngest_client
+from events.functions import inngest_functions
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +29,7 @@ from routes.mock_test import mock_test_generation as mock_test
 from routes.submissions import upload as submissions_upload
 from routes.submissions import grading as submissions_grading
 from auth import routes as auth_routes
+from routes import curriculum, practice
 
 # DB / models
 from db.session import engine
@@ -71,6 +78,15 @@ app.include_router(tutor.router, prefix="/api")
 app.include_router(submissions_upload.router, prefix="/api")
 app.include_router(submissions_grading.router, prefix="/api")
 app.include_router(auth_routes.router)
+app.include_router(curriculum.router, prefix="/api")
+app.include_router(practice.router, prefix="/api")
+
+# Serve Inngest functions
+inngest.fast_api.serve(
+    app,
+    inngest_client,
+    inngest_functions,
+)
 
 # Startup tasks: optionally preload heavy models to avoid first-request latency.
 # This is guarded so startup won't fail if models are missing or env isn't configured.

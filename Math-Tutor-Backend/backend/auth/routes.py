@@ -1,5 +1,6 @@
 # backend/auth/routes.py
 from typing import Any
+import inngest
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,6 +11,7 @@ from schemas.auth import UserCreate, UserOut, Token
 from services.auth_service import get_user_by_email, create_user, authenticate_user
 from .jwt_utils import create_access_token
 from .deps import get_current_user
+from events.client import inngest_client
 
 router = APIRouter(tags=["auth"], prefix="/auth")
 
@@ -20,9 +22,10 @@ router = APIRouter(tags=["auth"], prefix="/auth")
     status_code=status.HTTP_201_CREATED,
     summary="Create a new user account",
 )
-def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserOut:
+async def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserOut:
     """
     Create a new user. Returns the created user (without password).
+    Triggers 'user/signed_up' event for Inngest to handle mock test generation.
     """
     existing = get_user_by_email(db, in_user.email)
     if existing:
@@ -40,6 +43,15 @@ def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserOut:
         date_of_birth=in_user.date_of_birth,
         grade=in_user.grade,
     )
+
+    # TRIGGER INNGEST EVENT
+    await inngest_client.send(
+        inngest.Event(
+            name="user/signed_up",
+            data={"user_id": user.id, "email": user.email}
+        )
+    )
+
     return user
 
 

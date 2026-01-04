@@ -7,6 +7,7 @@ from services.grading_service import (
     verify_solution_logical_flow,
     calculate_final_score,
 )
+from services.mock_test_service import generate_entry_mock_test_for_user
 import json
 
 router = APIRouter()
@@ -42,92 +43,21 @@ def fetch_problems_by_domain(conn, domain: str, count: int) -> list:
 @router.get("/entry_mock_test")
 def generate_entry_mock_test(current_user: UserOut = Depends(get_current_user)):
     """
-    Generate an RMO Entry Mock Test with specific structure:
-    - Difficulty range: 3.0 to 6.0 (RMO entry level)
-    - Algebra: 3 questions
-    - Number Theory: 3 questions
-    - Geometry: 3 questions
-    - Combinatorics: 1 question
-    Total: 10 questions
+    Generate an RMO Entry Mock Test.
+    This is now primarily handled automatically on signup via events,
+    but this endpoint remains to trigger one manually if needed.
     """
-    conn = get_db_connection()
-    
     try:
-        # Domain distribution for RMO test
-        domain_config = [
-            ("Algebra", 3),
-            ("Number Theory", 3),
-            ("Geometry", 3),
-            ("Combinatorics", 1)
-        ]
+        test_id = generate_entry_mock_test_for_user(current_user.id)
+        if test_id == 0:
+            raise HTTPException(status_code=404, detail="Could not generate test (no problems found)")
         
-        all_problems = []
-        domain_counts = {}
-        
-        # Fetch problems for each domain
-        for domain_name, count in domain_config:
-            rows = fetch_problems_by_domain(conn, domain_name, count)
-            
-            if len(rows) < count:
-                # Log warning but continue with available problems
-                domain_counts[domain_name] = len(rows)
-            else:
-                domain_counts[domain_name] = count
-            
-            problems = [
-                {
-                    "problem_id": row[0],
-                    "domain": parse_domains(row[1]),
-                    "problem": row[2],
-                    "solution": row[3],
-                    "answer": row[4],
-                    "difficulty_level": row[5],
-                    "created_at": row[6]
-                } for row in rows
-            ]
-            all_problems.extend(problems)
-        
-        # Persist the generated test instance in DB
-        if not all_problems:
-            raise HTTPException(
-                status_code=404, 
-                detail="No problems found for RMO difficulty range (3.0-6.0) in the specified domains."
-            )
-        
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                INSERT INTO mock_tests (test_type, problems, student_id, status)
-                VALUES (%s, %s, %s, %s)
-                RETURNING test_id;
-                """,
-                (
-                    "RMO Entry Mock Test",
-                    json.dumps([{ "problem_id": p["problem_id"] } for p in all_problems]),
-                    current_user.id,
-                    "not_started"
-                ),
-            )
-            test_id = cur.fetchone()[0]
-            conn.commit()
-        finally:
-            cur.close()
-            conn.close()
-
         return {
             "test_id": test_id,
             "test_type": "RMO Entry Mock Test",
-            "difficulty_range": "3.0 - 6.0",
-            "total_questions": len(all_problems),
-            "domain_distribution": domain_counts,
-            "problems": all_problems,
+            "message": "Entry test generated successfully"
         }
-    
-    except HTTPException:
-        raise
     except Exception as e:
-        conn.close()
         raise HTTPException(status_code=500, detail=f"Error generating mock test: {str(e)}")
 
 

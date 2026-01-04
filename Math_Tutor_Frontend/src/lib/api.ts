@@ -244,5 +244,34 @@ export const api = {
       },
     });
   },
+
+  // Curriculum
+  selectCurriculum: async (durationMonths: number, token?: string | null): Promise<any> => {
+    return apiRequest('/api/curriculum/select', {
+      method: 'POST',
+      body: JSON.stringify({ duration_months: durationMonths }),
+    }, token);
+  },
+
+  getMyCurriculumSelection: async (token?: string | null): Promise<any> => {
+    return apiRequest('/api/curriculum/my-selection', {}, token);
+  },
+
+  getDailyTasks: async (taskDate?: string, token?: string | null): Promise<any> => {
+    const url = taskDate 
+      ? `/api/curriculum/daily-tasks?task_date=${taskDate}`
+      : '/api/curriculum/daily-tasks';
+    return apiRequest(url, {}, token);
+  },
+
+  completeTask: async (taskId: number, token?: string | null): Promise<any> => {
+    return apiRequest(`/api/curriculum/daily-tasks/${taskId}/complete`, {
+      method: 'POST',
+    }, token);
+  },
+
+  getTaskHistory: async (limit: number = 30, token?: string | null): Promise<any> => {
+    return apiRequest(`/api/curriculum/daily-tasks/history?limit=${limit}`, {}, token);
+  },
 };
 

@@ -111,6 +111,33 @@ async def submit_solution(
     try:
         with conn:
             with conn.cursor() as cur:
+                # Special handling for practice problems (test_id=0)
+                if test_id == 0:
+                    # Look for an existing "Practice Session" mock test for this student
+                    cur.execute(
+                        """
+                        SELECT test_id FROM mock_tests 
+                        WHERE student_id = %s AND test_type = 'Practice Session'
+                        LIMIT 1
+                        """,
+                        (student_id,)
+                    )
+                    row = cur.fetchone()
+                    
+                    if row:
+                        test_id = row[0]
+                    else:
+                        # Create a new "Practice Session" mock test
+                        cur.execute(
+                            """
+                            INSERT INTO mock_tests (test_type, student_id, problems, status)
+                            VALUES (%s, %s, '[]'::jsonb, 'in_progress')
+                            RETURNING test_id
+                            """,
+                            ('Practice Session', student_id)
+                        )
+                        test_id = cur.fetchone()[0]
+
                 # Create or fetch submission_id for this test_id + student_id
                 cur.execute(
                     """

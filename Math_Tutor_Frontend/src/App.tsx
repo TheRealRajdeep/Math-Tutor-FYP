@@ -10,6 +10,7 @@ import Problems from './pages/Problems';
 import Progress from './pages/Progress';
 import Tutor from './pages/Tutor';
 import Settings from './pages/Settings';
+import Curriculum from './pages/Curriculum';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -53,6 +54,7 @@ function AppRoutes() {
             <Route path="problems" element={<Problems />} />
             <Route path="progress" element={<Progress />} />
             <Route path="tutor" element={<Tutor />} />
+            <Route path="curriculum" element={<Curriculum />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="/auth" element={<Navigate to="/dashboard" replace />} />

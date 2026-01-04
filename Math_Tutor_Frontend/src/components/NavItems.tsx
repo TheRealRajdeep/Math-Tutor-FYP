@@ -13,7 +13,7 @@ const NavItems = () => {
   return (
     <ul className="flex flex-row p-2 gap-4 lg:gap-6 xl:gap-10 font-medium whitespace-nowrap overflow-x-auto scrollbar-hide">
       {NAV_ITEMS.map(({ href, label }) => (
-        <li key={href} className="flex-shrink-0">
+        <li key={href} className="flex flex-shrink-0">
           <Link
             to={href}
             className={cn(

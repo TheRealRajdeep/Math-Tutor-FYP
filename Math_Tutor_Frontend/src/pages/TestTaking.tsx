@@ -225,8 +225,12 @@ const TestTaking = () => {
     setSubmittingTest(true);
     try {
       await api.submitTest(parseInt(testId), token);
-      // Navigate back to mock tests page to see results
-      navigate('/mock-tests');
+      
+      if (test.test_type === 'RMO Entry Mock Test') {
+        navigate('/curriculum');
+      } else {
+        navigate('/mock-tests');
+      }
     } catch (error) {
       console.error('Failed to submit test:', error);
       alert('Failed to submit test. Please try again.');
