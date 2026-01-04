@@ -396,3 +396,4 @@ def get_task_history(
     finally:
         conn.close()
 
+

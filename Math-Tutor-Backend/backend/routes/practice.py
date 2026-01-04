@@ -109,3 +109,4 @@ def get_practice_recommendations(current_user: UserOut = Depends(get_current_use
         conn.close()
 
 
+

@@ -43,11 +43,11 @@ const Dashboard = () => {
         const tests = await api.getMockTests(token);
         // Find if there is an unfinished entry test
         // We look for 'RMO Entry Mock Test' specifically, or if the user has only one test ever and it's not started (new user case)
-        const entryTest = tests.find(t => 
-          (t.test_type === 'RMO Entry Mock Test' || (tests.length === 1 && t.status === 'not_started')) && 
+        const entryTest = tests.find(t =>
+          (t.test_type === 'RMO Entry Mock Test' || (tests.length === 1 && t.status === 'not_started')) &&
           t.status === 'not_started'
         );
-        
+
         if (entryTest) {
           setPendingTestId(entryTest.test_id);
           setShowEntryTestModal(true);
@@ -62,13 +62,13 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDailyTasks = async () => {
       if (!token) return;
-      
+
       try {
         setLoadingTasks(true);
         // Check if user has curriculum selection
         const selection = await api.getMyCurriculumSelection(token);
         setHasCurriculum(selection.has_selection || false);
-        
+
         if (selection.has_selection) {
           const tasks = await api.getDailyTasks(undefined, token);
           setDailyTasks(tasks);
@@ -79,13 +79,13 @@ const Dashboard = () => {
         setLoadingTasks(false);
       }
     };
-    
+
     fetchDailyTasks();
   }, [token]);
 
   const handleCompleteTask = async (taskId: number) => {
     if (!token) return;
-    
+
     try {
       await api.completeTask(taskId, token);
       // Refresh tasks
@@ -223,24 +223,23 @@ const Dashboard = () => {
                 {dailyTasks.tasks.map((task: any) => {
                   const TaskIcon = getTaskIcon(task.task_type);
                   const isCompleted = task.is_completed;
-                  const taskContent = typeof task.task_content === 'string' 
-                    ? JSON.parse(task.task_content) 
+                  const taskContent = typeof task.task_content === 'string'
+                    ? JSON.parse(task.task_content)
                     : task.task_content;
-                  
+
                   return (
                     <div
                       key={task.task_id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        isCompleted 
-                          ? 'bg-muted/50 border-muted' 
-                          : 'bg-background border-border'
-                      }`}
+                      className={`flex items-start gap-3 p-3 rounded-lg border ${isCompleted
+                        ? 'bg-muted/50 border-muted'
+                        : 'bg-background border-border'
+                        }`}
                     >
                       <div className="mt-1">
                         {isCompleted ? (
                           <CheckCircle2 className="h-5 w-5 text-green-600" />
                         ) : (
-                          <Circle 
+                          <Circle
                             className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-primary transition-colors"
                             onClick={() => handleCompleteTask(task.task_id)}
                           />
@@ -262,19 +261,19 @@ const Dashboard = () => {
                               <div
                                 className="whitespace-pre-wrap"
                                 // eslint-disable-next-line react/no-danger
-                                dangerouslySetInnerHTML={{ 
-                                  __html: renderLaTeXToHTML(taskContent.problem_text || '') 
+                                dangerouslySetInnerHTML={{
+                                  __html: renderLaTeXToHTML(taskContent.problem_text || '')
                                 }}
                               />
                             </div>
                             {taskContent.domain && (
                               <p className="text-xs text-muted-foreground mt-1 mb-1">
-                                Domain: {Array.isArray(taskContent.domain) 
-                                  ? taskContent.domain.join(', ') 
+                                Domain: {Array.isArray(taskContent.domain)
+                                  ? taskContent.domain.join(', ')
                                   : taskContent.domain}
                               </p>
                             )}
-                            <Link 
+                            <Link
                               to={`/problems?problem_id=${taskContent.problem_id}`}
                               className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
                             >
@@ -307,8 +306,8 @@ const Dashboard = () => {
                             <p className="text-sm font-medium">{taskContent.description}</p>
                             {taskContent.topics && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                Topics: {Array.isArray(taskContent.topics) 
-                                  ? taskContent.topics.join(', ') 
+                                Topics: {Array.isArray(taskContent.topics)
+                                  ? taskContent.topics.join(', ')
                                   : taskContent.topics}
                               </p>
                             )}
@@ -384,13 +383,10 @@ const Dashboard = () => {
               </p>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col sm:justify-between sm:flex-row gap-3">
-             <Button variant="outline" onClick={() => setShowEntryTestModal(false)}>
-               I'll do it later
-             </Button>
-             <Button onClick={handleStartTest}>
-               Start Entry Test
-             </Button>
+          <DialogFooter className="flex sm:justify-end sm:flex-row gap-3">
+            <Button onClick={handleStartTest}>
+              Start Entry Test
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

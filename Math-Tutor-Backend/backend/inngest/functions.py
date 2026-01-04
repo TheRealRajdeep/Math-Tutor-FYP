@@ -67,3 +67,4 @@ inngest_functions = [
     generate_entry_test_function,
     schedule_weekly_mock_function
 ]
+
