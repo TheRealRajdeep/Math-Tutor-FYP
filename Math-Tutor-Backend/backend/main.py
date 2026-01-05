@@ -101,8 +101,8 @@ async def _preload_models():
     try:
         # Preload embedding model (from your embedding service) if available
         try:
-            # import locally so module import order doesn't create circular imports
-            from .services.embedding_service import get_embedding_model as _get_embedding_model
+            # Use absolute import to avoid "attempted relative import with no known parent package"
+            from services.embedding_service import get_embedding_model as _get_embedding_model
 
             # call to load into cache
             _get_embedding_model()
@@ -112,7 +112,7 @@ async def _preload_models():
 
         # Preload tutor semantic model (if you created services/tutor_service.py)
         try:
-            from .services.tutor_service import _get_semantic_model as _get_tutor_model
+            from services.tutor_service import _get_semantic_model as _get_tutor_model
 
             # call to load into cache
             _get_tutor_model()
