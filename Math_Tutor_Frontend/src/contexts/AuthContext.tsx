@@ -58,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (data: SignupData) => {
+    // Create the user account first
+    await api.signup(data);
     // After signup, automatically log in
     await login(data.email, data.password);
   };
