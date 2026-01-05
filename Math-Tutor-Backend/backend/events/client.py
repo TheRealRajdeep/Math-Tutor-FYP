@@ -4,6 +4,7 @@ import inngest
 # Create the Inngest client
 inngest_client = inngest.Inngest(
     app_id="math_tutor_backend",
-    # event_key is optional in dev, but good practice to have env var
+    signing_key=os.getenv("INNGEST_SIGNING_KEY"),
+    event_key=os.getenv("INNGEST_EVENT_KEY"),
 )
 
