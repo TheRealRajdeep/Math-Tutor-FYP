@@ -73,7 +73,7 @@ async def login(
     Note: OAuth2PasswordRequestForm expects application/x-www-form-urlencoded.
     """
     # OAuth2PasswordRequestForm uses `username` and `password` fields.
-    user = await authenticate_user(db, email=form_data.username, password=form_data.password)
+    user = authenticate_user(db, email=form_data.username, password=form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
