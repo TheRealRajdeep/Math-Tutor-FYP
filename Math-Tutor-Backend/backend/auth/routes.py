@@ -45,12 +45,18 @@ async def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserO
     )
 
     # TRIGGER INNGEST EVENT
-    await inngest_client.send(
-        inngest.Event(
-            name="user/signed_up",
-            data={"user_id": user.id, "email": user.email}
+    try:
+        await inngest_client.send(
+            inngest.Event(
+                name="user/signed_up",
+                data={"user_id": user.id, "email": user.email}
+            )
         )
-    )
+    except Exception as e:
+        # Log error but don't fail the signup
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to send Inngest event: {str(e)}")
 
     return user
 
