@@ -51,10 +51,13 @@ logger.info("Server starting...")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://math-tutor-fyp-frontend-production.up.railway.app"
+        "https://math-tutor-fyp-frontend-production.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
     ],
+    allow_origin_regex="https://.*\\.up\\.railway\\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
