@@ -1,33 +1,25 @@
-import os
-from backend.routes.rag.rag import semantic_search
-from dotenv import load_dotenv
-from openai import OpenAI
-from fastapi import APIRouter
-from sentence_transformers import SentenceTransformer
-from db import get_db_connection
+# tutor.py
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+import logging
+from services.tutor_service import generate_hint_text
 
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-def generate_hint(student_query: str):
-    similar_problems = semantic_search(student_query)
-    context = "\n\n".join([p["problem"] + "\nSolution:\n" + p["solution"] for p in similar_problems])
 
-    prompt = f"""
-    You are an Olympiad math tutor.
-    The student asked: "{student_query}"
+class HintRequest(BaseModel):
+    query: str
 
-    Here are related problems and solutions:
-    {context}
 
-    Provide a helpful hint to guide them to the solution without giving the final answer.
-    """
+@router.post("/rag/hint")
+def generate_hint(request: HintRequest):
+    q = (request.query or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    return response.choices[0].message.content
+    hint = generate_hint_text(q)
+    if hint:
+        return {"hint": hint}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate hint")

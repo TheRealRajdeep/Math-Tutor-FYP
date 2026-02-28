@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from sentence_transformers import SentenceTransformer
-from backend.db import get_db_connection
+from db.db_connection import get_db_connection
 
 router = APIRouter()
 model = None
@@ -9,7 +9,6 @@ model = None
 def semantic_search(query: str, limit: int = 5):
     global model
     if model is None:
-        # Lazy-load model to avoid blocking app startup
         model = SentenceTransformer("all-MiniLM-L6-v2")
     embedding = model.encode(query).tolist()
 

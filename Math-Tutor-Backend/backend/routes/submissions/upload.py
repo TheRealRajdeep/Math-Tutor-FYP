@@ -1,14 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
-from backend.db import get_db_connection
+from db.db_connection import get_db_connection
 import os
 import json
 import re
 import logging
 from typing import List, Optional
 from datetime import datetime
-from backend.services.mathpix_service import extract_text_from_image
-from backend.services.embedding_service import generate_embedding
+from services.mathpix_service import extract_text_from_image
+from services.embedding_service import generate_embedding
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -28,12 +28,7 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
     """
     if not ocr_text:
         return None
-    
-    # Normalize text: convert to lowercase for matching, but preserve original for extraction
-    text_lower = ocr_text.lower()
-    
-    # Patterns to look for (case-insensitive)
-    # Common patterns: "ans:", "answer:", "final answer:", "answer is", etc.
+
     patterns = [
         r'answer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'ans\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
@@ -41,54 +36,43 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
         r'answer\s+is\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'ans\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'answer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'=\s*(.+?)(?:\n|$|\.|,|;|$)',  # Last "=" sign of the final answer
-        r'=*(.+?)(?:\n|$|\.|,|;|$)',  # Last "=" sign of the final answer
-        r'[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═][\s]*(.+?)[\s]*[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═]',  # Answer in a box (box-drawing characters)
-        r'\[[\s]*(.+?)[\s]*\]',  # Answer in square brackets [answer]
-        r'\|[\s]*(.+?)[\s]*\|',  # Answer between vertical bars |answer|
+        r'=\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'=*(.+?)(?:\n|$|\.|,|;|$)',
+        r'[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═][\s]*(.+?)[\s]*[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═]',
+        r'\[[\s]*(.+?)[\s]*\]',
+        r'\|[\s]*(.+?)[\s]*\|',
     ]
-    
-    # Try each pattern (case-insensitive)
+
     for pattern_idx, pattern in enumerate(patterns):
         matches = list(re.finditer(pattern, ocr_text, re.IGNORECASE | re.MULTILINE | re.DOTALL))
-        
-        # For the "last equals sign" pattern, use the last match
-        if pattern_idx == 6 and matches:  # Pattern index 6 is the last "=" pattern
+
+        if pattern_idx == 6 and matches:
             match = matches[-1]
         elif matches:
-            # For other patterns, use the first match
             match = matches[0]
         else:
             continue
-            
+
         answer = match.group(1).strip()
-        # Clean up common trailing punctuation and whitespace
         answer = re.sub(r'[.,;:]+\s*$', '', answer)
         answer = answer.strip()
-        
-        # Skip if answer is too short or empty
+
         if len(answer) > 0:
-            # Remove common prefixes that might have been captured
             answer = re.sub(r'^(is|equals?|=\s*)', '', answer, flags=re.IGNORECASE).strip()
             if len(answer) > 0:
                 return answer
-    
-    # Fallback: look for patterns at the end of text (often answers are at the end)
-    # Check last few lines for answer indicators
+
     lines = ocr_text.split('\n')
-    # Check last 3 lines
     for line in reversed(lines[-3:]):
         line_lower = line.lower().strip()
-        # Look for lines that start with answer keywords
         if line_lower.startswith(('ans:', 'answer:', 'ans ', 'answer ')):
-            # Extract everything after the keyword
             match = re.search(r'(?:ans|answer)\s*:?\s*(.+)', line, re.IGNORECASE)
             if match:
                 answer = match.group(1).strip()
                 answer = re.sub(r'[.,;:]+\s*$', '', answer).strip()
                 if len(answer) > 0:
                     return answer
-    
+
     return None
 
 
@@ -101,7 +85,7 @@ async def submit_solution(
 ):
     if not image_files or len(image_files) == 0:
         raise HTTPException(status_code=400, detail="At least one image file is required")
-    
+
     storage_dir = ensure_storage_dir()
     all_ocr_text = []
     image_paths = []
@@ -111,7 +95,31 @@ async def submit_solution(
     try:
         with conn:
             with conn.cursor() as cur:
-                # Create or fetch submission_id for this test_id + student_id
+                # Special handling for practice problems (test_id=0)
+                if test_id == 0:
+                    cur.execute(
+                        """
+                        SELECT test_id FROM mock_tests 
+                        WHERE student_id = %s AND test_type = 'Practice Session'
+                        LIMIT 1
+                        """,
+                        (student_id,)
+                    )
+                    row = cur.fetchone()
+
+                    if row:
+                        test_id = row[0]
+                    else:
+                        cur.execute(
+                            """
+                            INSERT INTO mock_tests (test_type, student_id, problems, status)
+                            VALUES (%s, %s, '[]'::jsonb, 'in_progress')
+                            RETURNING test_id
+                            """,
+                            ('Practice Session', student_id)
+                        )
+                        test_id = cur.fetchone()[0]
+
                 cur.execute(
                     """
                     INSERT INTO test_submissions (test_id, student_id, status)
@@ -123,7 +131,6 @@ async def submit_solution(
                 )
                 result = cur.fetchone()
                 if not result:
-                    # Fetch existing submission_id if insert didn't return (shouldn't happen with ON CONFLICT RETURNING)
                     cur.execute(
                         """
                         SELECT submission_id FROM test_submissions 
@@ -138,34 +145,29 @@ async def submit_solution(
                 else:
                     submission_id = result[0]
 
-                # Process each image file
                 for idx, image_file in enumerate(image_files):
                     filename = f"{student_id}_{test_id}_{problem_id}_{idx}_{timestamp}_{image_file.filename}"
                     file_path = os.path.join(storage_dir, filename)
-                    
+
                     try:
-                        # Save image file
                         with open(file_path, "wb") as out:
                             content = await image_file.read()
                             out.write(content)
-                        
+
                         image_paths.append(file_path)
-                        
-                        # Run OCR via MathPix for this image
+
                         ocr = extract_text_from_image(file_path)
                         if ocr.get("error"):
                             logger.error(f"MathPix OCR failed for image {idx+1}: {ocr.get('error')}")
-                            # Continue processing other images even if one fails
                             continue
-                        
+
                         ocr_text = ocr.get("text", "")
-                        
+
                         if ocr_text:
                             all_ocr_text.append(ocr_text)
-                            
+
                     except Exception as e:
                         logger.error(f"Error processing image {idx+1}: {str(e)}")
-                        # Continue with other images
                         continue
                     finally:
                         await image_file.close()
@@ -173,17 +175,15 @@ async def submit_solution(
                 if not image_paths:
                     raise HTTPException(status_code=500, detail="No images were successfully processed")
 
-                # Combine all OCR text from all pages
                 if len(all_ocr_text) > 1:
                     combined_text = "\n\n".join(
                         [f"[Page {i+1}]\n\n{text}" for i, text in enumerate(all_ocr_text)]
                     )
                 else:
                     combined_text = "\n\n".join(all_ocr_text) if all_ocr_text else ""
-                
+
                 logger.info(f"Combined OCR text length: {len(combined_text)} characters")
-                
-                # Extract answer from combined OCR text
+
                 extracted_answer = extract_answer_from_text(combined_text)
                 print(f"Extracted answer: {extracted_answer}")
                 if extracted_answer:
@@ -191,7 +191,6 @@ async def submit_solution(
                 else:
                     logger.warning(f"Could not extract answer from OCR text for problem {problem_id}")
 
-                # Upsert problem submission with multiple images
                 cur.execute(
                     """
                     INSERT INTO problem_submissions 
@@ -208,10 +207,10 @@ async def submit_solution(
                     (
                         submission_id,
                         problem_id,
-                        json.dumps(image_paths),  # Store as JSON array
+                        json.dumps(image_paths),
                         combined_text,
                         combined_text,
-                        extracted_answer,  # Store extracted answer
+                        extracted_answer,
                         datetime.utcnow(),
                     ),
                 )
@@ -233,5 +232,3 @@ async def submit_solution(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
-
-

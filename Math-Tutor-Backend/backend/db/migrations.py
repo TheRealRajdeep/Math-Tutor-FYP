@@ -46,10 +46,72 @@ def run_alter_migration():
         conn.close()
 
 
+def run_status_migration():
+    """Run migration to add status column to mock_tests table"""
+    load_dotenv()
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL not set in environment")
+
+    conn = psycopg2.connect(database_url)
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        try:
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'mock_tests' 
+                AND column_name = 'status'
+            """)
+
+            if cur.fetchone():
+                print("Status column already exists in mock_tests table")
+                return
+
+            print("Adding status column to mock_tests table...")
+            cur.execute("""
+                ALTER TABLE mock_tests 
+                ADD COLUMN status TEXT NOT NULL DEFAULT 'not_started';
+            """)
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_mock_tests_status ON mock_tests(status);
+            """)
+
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'mock_tests' 
+                AND column_name = 'status'
+            """)
+
+            if cur.fetchone():
+                print("✓ Migration completed: status column added to mock_tests table")
+            else:
+                print("✗ Warning: Migration executed but status column not found. Please check manually.")
+
+        except psycopg2.errors.DuplicateColumn:
+            print("Status column already exists (detected via error)")
+        except Exception as e:
+            print(f"Migration error: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        finally:
+            cur.close()
+    except Exception as e:
+        print(f"Connection error: {e}")
+        raise
+    finally:
+        conn.close()
+
+
 def reset_sequences(truncate_tables=False):
     """
     Reset all sequences (submission_id, result_id, test_id, id) to start from 1.
-    
+
     Args:
         truncate_tables: If True, truncate tables (deletes all data and resets sequences).
                         If False, only reset sequences without deleting data.
@@ -58,13 +120,12 @@ def reset_sequences(truncate_tables=False):
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL not set in environment")
-    
+
     conn = psycopg2.connect(database_url)
     try:
         with conn:
             with conn.cursor() as cur:
                 if truncate_tables:
-                    # Truncate tables (deletes all data and automatically resets sequences)
                     tables = [
                         ("student_mistakes", "student_mistakes id"),
                         ("grading_results", "result_id"),
@@ -72,38 +133,35 @@ def reset_sequences(truncate_tables=False):
                         ("test_submissions", "submission_id"),
                         ("mock_tests", "test_id"),
                     ]
-                    
+
                     print("Truncating tables (this will delete all data and reset sequences)...")
                     for table_name, description in tables:
                         try:
-                            # Use CASCADE to handle foreign key constraints
                             cur.execute(f"TRUNCATE TABLE {table_name} CASCADE;")
                             print(f"Truncated {table_name} ({description})")
                         except Exception as table_error:
                             print(f"Warning: Could not truncate {table_name}: {table_error}")
                             continue
-                    
+
                     print("All tables truncated and sequences reset successfully")
                 else:
-                    # Only reset sequences without deleting data
                     sequences = [
                         ("test_submissions_submission_id_seq", "submission_id"),
                         ("grading_results_result_id_seq", "result_id"),
                         ("mock_tests_test_id_seq", "test_id"),
                         ("student_mistakes_id_seq", "student_mistakes id"),
                     ]
-                    
+
                     for seq_name, description in sequences:
                         try:
                             cur.execute(f"ALTER SEQUENCE {seq_name} RESTART WITH 1;")
                             print(f"Reset {description} sequence ({seq_name}) to start from 1")
                         except Exception as seq_error:
                             print(f"Warning: Could not reset {seq_name}: {seq_error}")
-                            # Continue with other sequences even if one fails
                             continue
-                    
+
                     print("All sequences reset successfully")
-                
+
                 conn.commit()
     except Exception as e:
         print(f"Error resetting sequences: {e}")
@@ -119,7 +177,7 @@ if __name__ == "__main__":
         reset_sequences()
     elif len(sys.argv) > 1 and sys.argv[1] == "alter":
         run_alter_migration()
+    elif len(sys.argv) > 1 and sys.argv[1] == "status":
+        run_status_migration()
     else:
         run_migration()
-
-

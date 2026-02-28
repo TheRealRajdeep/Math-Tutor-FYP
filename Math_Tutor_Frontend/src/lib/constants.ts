@@ -5,7 +5,7 @@ import {
   Upload, 
   TrendingUp, 
   MessageCircle, 
-  Settings 
+  GraduationCap
 } from 'lucide-react';
 
 export interface NavItem {
@@ -21,8 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/submissions', label: 'Submissions', icon: Upload },
   { href: '/progress', label: 'Progress & Analytics', icon: TrendingUp },
   { href: '/tutor', label: 'AI Tutor', icon: MessageCircle },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/curriculum', label: 'Curriculum', icon: GraduationCap },
 ];
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
