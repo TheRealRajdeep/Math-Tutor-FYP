@@ -2,8 +2,7 @@
 from typing import Any
 import inngest
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, Form, HTTPException, status
 from sqlalchemy.orm import Session
 
 from db.session import get_db
@@ -67,7 +66,9 @@ async def signup(*, db: Session = Depends(get_db), in_user: UserCreate) -> UserO
     summary="Login and receive an access token (OAuth2 password grant)",
 )
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    username: str = Form(..., description="User's email (OAuth2 'username' field)"),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
 ) -> Any:
     """
     Login endpoint that accepts form-encoded fields:
@@ -76,10 +77,9 @@ async def login(
 
     Returns:
       - access_token and token_type ("bearer")
-    Note: OAuth2PasswordRequestForm expects application/x-www-form-urlencoded.
+    Expects application/x-www-form-urlencoded.
     """
-    # OAuth2PasswordRequestForm uses `username` and `password` fields.
-    user = authenticate_user(db, email=form_data.username, password=form_data.password)
+    user = authenticate_user(db, email=username, password=password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

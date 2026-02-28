@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { api, type Problem, type GradingResult } from '@/lib/api';
 import { renderLaTeXToHTML } from '@/lib/latex';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, ImagePlus, X } from 'lucide-react';
 
 const Problems = () => {
   const { user } = useAuth();
@@ -80,10 +81,23 @@ const Problems = () => {
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setSelectedFiles(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles((prev) => {
+        const existingNames = new Set(prev.map((f) => f.name));
+        const deduplicated = newFiles.filter((f) => !existingNames.has(f.name));
+        return [...prev, ...deduplicated];
+      });
+      // Reset input so the same file can be re-added after removal
+      e.target.value = '';
     }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitSolution = async () => {
@@ -137,6 +151,7 @@ const Problems = () => {
     setSelectedFiles([]);
     setSubmissionResult(null);
     setShowSubmissionDialog(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const filteredProblems = problems.filter((problem) =>
@@ -232,31 +247,62 @@ const Problems = () => {
           <DialogHeader>
             <DialogTitle>Submit Solution for Problem #{selectedProblem?.problem_id}</DialogTitle>
             <DialogDescription>
-              Upload an image of your handwritten solution. Our AI will grade it and provide feedback.
+              Upload one or more photos of your handwritten solution. Our AI will grade them and provide feedback.
             </DialogDescription>
           </DialogHeader>
 
           {!submissionResult ? (
             <div className="space-y-4 py-4">
-              <div className="grid w-full max-w-sm items-center gap-1.5">
-                <label htmlFor="solution-image" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Solution Image
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="solution-image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                {selectedFiles.length > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Selected: {selectedFiles[0].name}
-                  </p>
-                )}
+              {/* Upload area */}
+              <div
+                className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 p-6 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                onClick={() => !isSubmitting && fileInputRef.current?.click()}
+              >
+                <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">Click to add photos</p>
+                <p className="text-xs text-muted-foreground">JPG, PNG, HEIC, etc. — you can add multiple</p>
+                <Input
+                  ref={fileInputRef}
+                  id="solution-image"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  disabled={isSubmitting}
+                  className="hidden"
+                />
               </div>
+
+              {/* Selected files preview */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{selectedFiles.length} photo{selectedFiles.length > 1 ? 's' : ''} selected</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedFiles.map((file, idx) => (
+                      <div key={`${file.name}-${idx}`} className="relative group rounded-md overflow-hidden border bg-muted aspect-square">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Page ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(idx)}
+                          disabled={isSubmitting}
+                          className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:cursor-not-allowed"
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1 text-[10px] text-white leading-4">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4 py-4">
@@ -282,12 +328,31 @@ const Problems = () => {
                   <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
                 </div>
 
-                {submissionResult.error_summary && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium mb-1">Feedback:</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                      {submissionResult.error_summary}
-                    </p>
+                {!submissionResult.answer_is_correct && (submissionResult.hint_provided || submissionResult.error_summary) && (
+                  <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
+                    <p className="text-sm font-semibold mb-2 text-red-800 dark:text-red-200">Tutor Feedback:</p>
+                    {submissionResult.hint_provided ? (
+                      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 ml-1">{children}</ol>,
+                            ul: ({ children }) => <ul className="list-disc list-inside space-y-1 ml-1">{children}</ul>,
+                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            h1: ({ children }) => <h1 className="font-semibold text-base text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h1>,
+                            h2: ({ children }) => <h2 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h2>,
+                            h3: ({ children }) => <h3 className="font-medium text-sm text-gray-800 dark:text-gray-200 mt-2 mb-1">{children}</h3>,
+                          }}
+                        >
+                          {submissionResult.hint_provided}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {submissionResult.error_summary}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

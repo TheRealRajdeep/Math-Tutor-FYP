@@ -1,15 +1,18 @@
 # grading.py
+import logging
 from fastapi import APIRouter, HTTPException
 from db.db_connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 from services.grading_service import (
     verify_answer_correctness,
     verify_solution_logical_flow,
     calculate_final_score,
 )
 try:
-    from services.tutor_service import generate_hint_text
+    from services.tutor_service import generate_wrong_answer_feedback
 except Exception:
-    def generate_hint_text(query: str, limit: int = 3):
+    def generate_wrong_answer_feedback(problem, student_answer, correct_answer, student_solution, ref_solution, limit=3):
         return None
 
 router = APIRouter()
@@ -23,7 +26,8 @@ def grade_submission(submission_id: int):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT ps.problem_id, ps.student_solution, ps.student_answer, oml.answer, oml.solution, oml.domain
+                    SELECT ps.problem_id, ps.student_solution, ps.student_answer,
+                           oml.answer, oml.solution, oml.domain, oml.problem
                     FROM problem_submissions ps
                     JOIN omni_math_data oml ON oml.problem_id = ps.problem_id
                     WHERE ps.submission_id = %s
@@ -35,12 +39,22 @@ def grade_submission(submission_id: int):
                     raise HTTPException(status_code=404, detail="No problem submissions found")
 
                 total_percentage = 0.0
-                for problem_id, student_solution, student_answer, correct_answer, ref_solution, domain in rows:
+                for problem_id, student_solution, student_answer, correct_answer, ref_solution, domain, problem_text in rows:
                     # Prefer structured student_answer, else fallback to extracted OCR solution
                     student_answer = student_answer or student_solution or ""
 
-                    ar = verify_answer_correctness(student_answer, correct_answer)
-                    sr = verify_solution_logical_flow(student_solution or "", ref_solution or "", correct_answer or "")
+                    try:
+                        ar = verify_answer_correctness(student_answer, correct_answer)
+                    except Exception as exc:
+                        logger.error(f"verify_answer_correctness failed for submission {submission_id}: {exc}")
+                        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+                    try:
+                        sr = verify_solution_logical_flow(student_solution or "", ref_solution or "", correct_answer or "")
+                    except Exception as exc:
+                        logger.error(f"verify_solution_logical_flow failed for submission {submission_id}: {exc}")
+                        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
                     score = calculate_final_score(ar, sr)
 
                     hint_provided = None
@@ -52,9 +66,14 @@ def grade_submission(submission_id: int):
                         confidence = 0.0
 
                     if not is_correct:
-                        query_for_hint = student_solution or student_answer or ""
                         try:
-                            hint_provided = generate_hint_text(query_for_hint)
+                            hint_provided = generate_wrong_answer_feedback(
+                                problem=problem_text or "",
+                                student_answer=student_answer,
+                                correct_answer=correct_answer or "",
+                                student_solution=student_solution or "",
+                                ref_solution=ref_solution or "",
+                            )
                         except Exception:
                             hint_provided = None
 

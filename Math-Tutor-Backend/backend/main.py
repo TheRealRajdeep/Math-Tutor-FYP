@@ -76,11 +76,18 @@ app.include_router(auth_routes.router)
 app.include_router(curriculum.router, prefix="/api")
 app.include_router(practice.router, prefix="/api")
 
-inngest.fast_api.serve(
-    app,
-    inngest_client,
-    inngest_functions,
-)
+# Inngest requires INNGEST_SIGNING_KEY (from Inngest Cloud dashboard). Skip serve when missing so the app can run locally.
+if os.getenv("INNGEST_SIGNING_KEY"):
+    inngest.fast_api.serve(
+        app,
+        inngest_client,
+        inngest_functions,
+    )
+    logger.info("Inngest serve mounted.")
+else:
+    logger.warning(
+        "INNGEST_SIGNING_KEY not set. Inngest endpoints disabled. Event-driven mock test generation will not run."
+    )
 
 
 @app.on_event("startup")

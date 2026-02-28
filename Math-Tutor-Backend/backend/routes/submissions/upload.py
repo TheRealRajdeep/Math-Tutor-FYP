@@ -30,14 +30,13 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
         return None
 
     patterns = [
-        r'answer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'ans\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'\banswer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'\bans\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
         r'final\s+answer\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'answer\s+is\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'ans\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'answer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'=\s*(.+?)(?:\n|$|\.|,|;|$)',
-        r'=*(.+?)(?:\n|$|\.|,|;|$)',
+        r'\banswer\s+is\s*:?\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'\bans\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
+        r'\banswer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
+        # Removed aggressive equals matchers that catch equations
         r'[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═][\s]*(.+?)[\s]*[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═]',
         r'\[[\s]*(.+?)[\s]*\]',
         r'\|[\s]*(.+?)[\s]*\|',
@@ -46,9 +45,7 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
     for pattern_idx, pattern in enumerate(patterns):
         matches = list(re.finditer(pattern, ocr_text, re.IGNORECASE | re.MULTILINE | re.DOTALL))
 
-        if pattern_idx == 6 and matches:
-            match = matches[-1]
-        elif matches:
+        if matches:
             match = matches[0]
         else:
             continue

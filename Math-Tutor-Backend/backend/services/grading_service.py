@@ -1,22 +1,16 @@
-import re
+import logging
 from typing import Dict
-import numpy as np
 import json
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from .embedding_service import generate_embedding
+logger = logging.getLogger(__name__)
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
-def _cosine_sim(a, b) -> float:
-    va = np.array(a)
-    vb = np.array(b)
-    denom = (np.linalg.norm(va) * np.linalg.norm(vb)) or 1e-8
-    return float(np.dot(va, vb) / denom)
+# Model for grading: o3 is OpenAI's reasoning model, strong for math (see https://platform.openai.com/docs/models/o3)
+GRADING_MODEL = os.getenv("GRADING_MODEL", "o3")
 
 
 def _normalize_answer_text(text: str) -> str:
@@ -47,6 +41,7 @@ def verify_answer_correctness(student_answer: str, correct_answer: str) -> Dict:
     
     # Use OpenAI for semantic/equivalence checking
     try:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         prompt = f"""You are a math grading assistant. Compare the student's answer with the correct answer.
 
 Student Answer: {student_answer}
@@ -64,12 +59,11 @@ Task:
 Only return valid JSON, no other text."""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=GRADING_MODEL,
             messages=[
                 {"role": "system", "content": "You are a precise math grading assistant. Always respond with valid JSON only."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0,  # Use 0 temperature for consistent grading
             response_format={"type": "json_object"}  # Force JSON response
         )
         
@@ -93,24 +87,8 @@ Only return valid JSON, no other text."""
         }
         
     except Exception as e:
-        # Fallback to semantic similarity if OpenAI fails
-        emb_s = generate_embedding(student_answer)
-        emb_c = generate_embedding(correct_answer)
-        sim = _cosine_sim(emb_s, emb_c)
-        return {
-            "is_correct": sim >= 0.85,
-            "confidence": sim,
-            "match_type": "semantic_fallback",
-            "error": str(e)
-        }
-
-
-def split_into_steps(solution_text: str):
-    if not solution_text:
-        return []
-    # naive split on newlines or sentence terminators
-    parts = re.split(r"\n+|(?<=[\.;:])\s+", solution_text)
-    return [p.strip() for p in parts if p and len(p.strip()) > 1]
+        logger.error(f"OpenAI answer verification failed: {str(e)}")
+        raise RuntimeError(f"Answer verification failed — OpenAI API error: {str(e)}") from e
 
 
 def verify_solution_logical_flow(student_solution: str, reference_solution: str, correct_answer: str) -> Dict:
@@ -129,6 +107,7 @@ def verify_solution_logical_flow(student_solution: str, reference_solution: str,
         }
     
     try:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         prompt = f"""You are a math grading assistant evaluating a student's solution logic.
 
 Student's Solution:
@@ -161,12 +140,11 @@ The logical_score should be high (>=0.8) if:
 Only return valid JSON, no other text."""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=GRADING_MODEL,
             messages=[
                 {"role": "system", "content": "You are a precise math grading assistant. Always respond with valid JSON only. Evaluate mathematical solutions fairly, recognizing that multiple valid approaches exist."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0,  # Use 0 temperature for consistent grading
             response_format={"type": "json_object"}  # Force JSON response
         )
         
@@ -194,43 +172,8 @@ Only return valid JSON, no other text."""
         }
         
     except Exception as e:
-        # Fallback to old method if OpenAI fails (but log the error)
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"OpenAI logical flow evaluation failed: {str(e)}, falling back to embedding-based method")
-        
-        # Fallback to old embedding-based method
-        student_steps = split_into_steps(student_solution)
-        ref_steps = split_into_steps(reference_solution)
-
-        if not student_steps:
-            return {
-                "logical_score": 0.0,
-                "step_count": 0,
-                "valid_steps": 0,
-                "first_error_step_index": 0,
-                "error_summary": "No solution steps found",
-            }
-
-        valid = 0
-        first_error = None
-        for idx, s in enumerate(student_steps):
-            best = 0.0
-            for r in ref_steps:
-                best = max(best, _cosine_sim(generate_embedding(s), generate_embedding(r)))
-            if best >= 0.70:
-                valid += 1
-            elif first_error is None:
-                first_error = idx
-
-        logical_score = valid / max(len(student_steps), 1)
-        return {
-            "logical_score": float(logical_score),
-            "step_count": len(student_steps),
-            "valid_steps": valid,
-            "first_error_step_index": 0 if first_error is None else int(first_error),
-            "error_summary": None if first_error is None else f"Step {first_error+1} deviates from reference",
-        }
+        logger.error(f"OpenAI logical flow evaluation failed: {str(e)}")
+        raise RuntimeError(f"Solution evaluation failed — OpenAI API error: {str(e)}") from e
 
 
 def calculate_final_score(answer_result: Dict, solution_result: Dict, max_score: float = 1.0) -> Dict:
@@ -251,5 +194,3 @@ def calculate_final_score(answer_result: Dict, solution_result: Dict, max_score:
         "max_score": float(max_score),
         "percentage": float(percentage),
     }
-
-

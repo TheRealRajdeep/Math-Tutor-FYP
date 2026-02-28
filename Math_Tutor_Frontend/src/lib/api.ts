@@ -44,6 +44,8 @@ export interface GradingResult {
   percentage: number;
   first_error_step_index?: number;
   error_summary?: string;
+  hint_provided?: string;
+  final_score?: number;
 }
 
 export interface User {
