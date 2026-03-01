@@ -25,6 +25,11 @@ const Problems = () => {
   const [submissionResult, setSubmissionResult] = useState<GradingResult | null>(null);
   const [showSubmissionDialog, setShowSubmissionDialog] = useState(false);
 
+  // Cancellation token: each new submission increments this.
+  // Any poll callback that doesn't hold the latest token is silently dropped,
+  // preventing stale results from a previous problem from overwriting the current one.
+  const activePollId = useRef(0);
+
   useEffect(() => {
     fetchProblems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,28 +108,44 @@ const Problems = () => {
   const handleSubmitSolution = async () => {
     if (!selectedProblem || !user || selectedFiles.length === 0) return;
 
+    // Claim a new poll token; any callbacks from older submissions will see
+    // a stale token and exit immediately without touching state.
+    const pollToken = ++activePollId.current;
+    // Capture the problem_id at submission time so the poll always filters
+    // to the correct result even if selectedProblem changes later.
+    const submittedProblemId = selectedProblem.problem_id;
+
     setIsSubmitting(true);
     setSubmissionResult(null);
 
     try {
       const submission = await api.submitSolution(
         0, // Dummy test ID for practice
-        selectedProblem.problem_id,
+        submittedProblemId,
         user.id.toString(),
         selectedFiles
       );
 
-      await api.gradeSubmission(submission.submission_id);
+      await api.gradeSubmission(submission.submission_id, submittedProblemId);
 
       let retries = 0;
       const maxRetries = 10;
       const pollInterval = 2000;
 
       const pollResults = async () => {
+        // Guard: if a newer submission has started, stop this poll immediately.
+        if (pollToken !== activePollId.current) return;
+
         try {
           const results = await api.getSubmissionResults(submission.submission_id);
-          if (results && results.length > 0) {
-            setSubmissionResult(results[0]);
+          if (pollToken !== activePollId.current) return; // check again after await
+
+          // Match by problem_id — the submission_id is reused for practice problems,
+          // so there may be stale results for other problems in the same list.
+          const matchingResult = results?.find(r => r.problem_id === submittedProblemId);
+
+          if (matchingResult) {
+            setSubmissionResult(matchingResult);
             setIsSubmitting(false);
           } else if (retries < maxRetries) {
             retries++;
@@ -133,6 +154,7 @@ const Problems = () => {
             setIsSubmitting(false);
           }
         } catch (error) {
+          if (pollToken !== activePollId.current) return;
           console.error("Error fetching results:", error);
           setIsSubmitting(false);
         }
@@ -141,15 +163,27 @@ const Problems = () => {
       pollResults();
 
     } catch (error) {
+      if (pollToken !== activePollId.current) return;
       console.error('Failed to submit solution:', error);
       setIsSubmitting(false);
     }
   };
 
+  const closeSubmissionDialog = () => {
+    // Invalidate any in-flight poll so it can't overwrite state after close.
+    activePollId.current++;
+    setShowSubmissionDialog(false);
+    setSubmissionResult(null);
+    setIsSubmitting(false);
+  };
+
   const openSubmissionDialog = (problem: Problem) => {
+    // Invalidate any in-flight poll from the previous dialog session.
+    activePollId.current++;
     setSelectedProblem(problem);
     setSelectedFiles([]);
     setSubmissionResult(null);
+    setIsSubmitting(false);
     setShowSubmissionDialog(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -242,7 +276,7 @@ const Problems = () => {
       </div>
 
       {/* Submission Dialog */}
-      <Dialog open={showSubmissionDialog} onOpenChange={setShowSubmissionDialog}>
+      <Dialog open={showSubmissionDialog} onOpenChange={(open) => { if (!open) closeSubmissionDialog(); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Submit Solution for Problem #{selectedProblem?.problem_id}</DialogTitle>
@@ -328,9 +362,15 @@ const Problems = () => {
                   <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
                 </div>
 
-                {!submissionResult.answer_is_correct && (submissionResult.hint_provided || submissionResult.error_summary) && (
-                  <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
-                    <p className="text-sm font-semibold mb-2 text-red-800 dark:text-red-200">Tutor Feedback:</p>
+                {(submissionResult.hint_provided || submissionResult.error_summary) && (
+                  <div className={`mt-3 pt-3 border-t ${submissionResult.answer_is_correct
+                    ? 'border-green-200 dark:border-green-800'
+                    : 'border-red-200 dark:border-red-800'
+                    }`}>
+                    <p className={`text-sm font-semibold mb-2 ${submissionResult.answer_is_correct
+                      ? 'text-green-800 dark:text-green-200'
+                      : 'text-red-800 dark:text-red-200'
+                      }`}>Tutor Feedback:</p>
                     {submissionResult.hint_provided ? (
                       <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
                         <ReactMarkdown
@@ -369,7 +409,7 @@ const Problems = () => {
                 {isSubmitting ? 'Grading...' : 'Submit & Check'}
               </Button>
             ) : (
-              <Button variant="outline" onClick={() => setShowSubmissionDialog(false)}>
+              <Button variant="outline" onClick={closeSubmissionDialog}>
                 Close
               </Button>
             )}

@@ -171,8 +171,12 @@ export const api = {
     return response.json();
   },
 
-  gradeSubmission: async (submissionId: number): Promise<{ submission_id: number; message: string }> => {
-    return apiRequest(`/api/grade_submission/${submissionId}`, {
+  gradeSubmission: async (submissionId: number, problemId?: number): Promise<{ submission_id: number; message: string }> => {
+    let url = `/api/grade_submission/${submissionId}`;
+    if (problemId) {
+      url += `?problem_id=${problemId}`;
+    }
+    return apiRequest(url, {
       method: 'POST',
     });
   },

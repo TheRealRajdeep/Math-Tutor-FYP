@@ -1,17 +1,7 @@
-uvicorn==0.24.0
-pydantic>=2.10.0
-pydantic[email]
-requests>=2.31.0
-python-multipart>=0.0.6
-python-dotenv>=1.0.0
-sentence-transformers>=2.2.0
-numpy>=1.24.0
-SQLAlchemy>=1.4
-passlib[bcrypt]>=1.7
-PyJWT>=2.6
-fastapi>=0.100.0
-openai>=1.0.0
-torchvision
+fastapi
+uvicorn
+python-dotenv
+openai
 psycopg2
 psycopg2-binary
 inngest
@@ -19,10 +9,4 @@ argon2-cffi>=21.3.0
 
 # Optional / recommended
 alembic>=1.11        # DB migrations
-httpx>=0.24          # for tests (TestClient alternative) / calling internal APIs in tests
-pytest>=7.0          # tests
-pytest-asyncio>=0.20 # if you add async tests
-
-# (Optional) If you later migrate to async DB drivers:
-# asyncpg>=0.27
-# databases>=0.6.0
+sentence-transformers # for embeddings

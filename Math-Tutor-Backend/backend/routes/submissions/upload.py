@@ -38,7 +38,7 @@ def extract_answer_from_text(ocr_text: str) -> Optional[str]:
         r'\banswer\s+=\s*(.+?)(?:\n|$|\.|,|;|$)',
         # Removed aggressive equals matchers that catch equations
         r'[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═][\s]*(.+?)[\s]*[│┃│┌┐└┘├┤┬┴┼║╔╗╚╝╠╣╦╩╬─━═]',
-        r'\[[\s]*(.+?)[\s]*\]',
+        # Removed aggressive bracket matcher that was catching [Page 1]
         r'\|[\s]*(.+?)[\s]*\|',
     ]
 
