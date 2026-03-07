@@ -63,6 +63,42 @@ export interface Token {
   token_type: string;
 }
 
+export interface DomainStat {
+  name: string;
+  total_attempted: number;
+  correct: number;
+  accuracy: number;
+  avg_score: number;
+  avg_logic_score: number;
+  strength_level: 'weak' | 'developing' | 'strong';
+  trend: 'improving' | 'declining' | 'stable';
+}
+
+export interface TestHistoryEntry {
+  test_id: number;
+  label: string;
+  test_type: string;
+  avg_score: number;
+  correct: number;
+  total: number;
+  date: string | null;
+}
+
+export interface AnalyticsProfile {
+  domains: DomainStat[];
+  overall: {
+    total_attempted: number;
+    total_correct: number;
+    accuracy: number;
+    avg_score: number;
+    tests_completed: number;
+  };
+  strongest_domain: string | null;
+  weakest_domain: string | null;
+  recent_error_themes: string[];
+  test_history: TestHistoryEntry[];
+}
+
 export interface SignupData {
   name: string;
   email: string;
@@ -274,5 +310,10 @@ export const api = {
 
   getTaskHistory: async (limit: number = 30, token?: string | null): Promise<any> => {
     return apiRequest(`/api/curriculum/daily-tasks/history?limit=${limit}`, {}, token);
+  },
+
+  // Analytics
+  getAnalyticsProfile: async (token?: string | null): Promise<AnalyticsProfile> => {
+    return apiRequest<AnalyticsProfile>('/api/analytics/my-profile', {}, token);
   },
 };
