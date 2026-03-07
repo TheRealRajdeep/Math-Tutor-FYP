@@ -144,6 +144,22 @@ CREATE TABLE IF NOT EXISTS user_curriculum_selections (
   UNIQUE(student_id)
 );
 
+-- Table: teaching_sessions
+-- Each row is one structured lesson session (5-6 GPT-generated steps).
+-- lesson_plan stores the full step array as JSONB; current_step is the 0-based index.
+CREATE TABLE IF NOT EXISTS teaching_sessions (
+  session_id    SERIAL PRIMARY KEY,
+  student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  topic         TEXT NOT NULL,
+  domain        TEXT NOT NULL,
+  lesson_plan   JSONB NOT NULL DEFAULT '[]'::jsonb,
+  current_step  INTEGER NOT NULL DEFAULT 0,
+  retry_count   INTEGER NOT NULL DEFAULT 0,
+  completed     BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at  TIMESTAMPTZ
+);
+
 -- Table: practice_sessions
 -- Tracks adaptive practice sessions per student per domain.
 -- current_difficulty is adjusted after each problem (up on >=80%, down on <50%).

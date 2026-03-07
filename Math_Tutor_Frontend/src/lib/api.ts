@@ -84,6 +84,67 @@ export interface TestHistoryEntry {
   date: string | null;
 }
 
+// ── Teaching types ────────────────────────────────────────────────────────────
+
+export type LessonStepType = 'intro' | 'example' | 'practice' | 'checkpoint' | 'summary';
+export type LessonStepStatus = 'pending' | 'completed' | 'skipped';
+export type StepResult = 'passed' | 'failed' | 'skipped' | 'continued';
+
+export interface LessonStep {
+  step_index: number;
+  type: LessonStepType;
+  title: string;
+  content: string;
+  question: string | null;
+  expected_answer: string | null;
+  status: LessonStepStatus;
+}
+
+export interface StepOverview {
+  step_index: number;
+  type: LessonStepType;
+  title: string;
+  status: LessonStepStatus;
+}
+
+export interface TeachingSession {
+  session_id: number;
+  topic: string;
+  domain: string;
+  total_steps: number;
+  current_step: LessonStep | null;
+  current_step_index: number;
+  completed: boolean;
+  retry_count: number;
+  steps_overview: StepOverview[];
+}
+
+export interface StepEvaluation {
+  is_correct: boolean;
+  feedback: string;
+  hint: string | null;
+}
+
+export interface AdvanceResponse {
+  evaluation: StepEvaluation | null;
+  reexplanation: string | null;
+  step_result: StepResult;
+  next_step: LessonStep | null;
+  current_step_index: number;
+  session_complete: boolean;
+}
+
+export interface TeachingSessionSummary {
+  session_id: number;
+  topic: string;
+  domain: string;
+  current_step: number;
+  completed: boolean;
+  created_at: string | null;
+  completed_at: string | null;
+  total_steps: number;
+}
+
 export interface RecommendedResource {
   recommendation_id: number;
   material_id: number;
@@ -394,6 +455,41 @@ export const api = {
 
   getTaskHistory: async (limit: number = 30, token?: string | null): Promise<any> => {
     return apiRequest(`/api/curriculum/daily-tasks/history?limit=${limit}`, {}, token);
+  },
+
+  // Teaching
+  getTopicSuggestions: async (): Promise<Record<string, string[]>> => {
+    return apiRequest<Record<string, string[]>>('/api/teach/topics');
+  },
+
+  startTeachingSession: async (
+    topic: string,
+    domain: string,
+    token?: string | null,
+  ): Promise<TeachingSession> => {
+    return apiRequest<TeachingSession>('/api/teach/session/start', {
+      method: 'POST',
+      body: JSON.stringify({ topic, domain }),
+    }, token);
+  },
+
+  getTeachingSession: async (sessionId: number, token?: string | null): Promise<TeachingSession> => {
+    return apiRequest<TeachingSession>(`/api/teach/session/${sessionId}`, {}, token);
+  },
+
+  advanceTeachingSession: async (
+    sessionId: number,
+    studentResponse: string,
+    token?: string | null,
+  ): Promise<AdvanceResponse> => {
+    return apiRequest<AdvanceResponse>(`/api/teach/session/${sessionId}/advance`, {
+      method: 'POST',
+      body: JSON.stringify({ student_response: studentResponse }),
+    }, token);
+  },
+
+  getTeachingSessions: async (limit = 8, token?: string | null): Promise<TeachingSessionSummary[]> => {
+    return apiRequest<TeachingSessionSummary[]>(`/api/teach/sessions?limit=${limit}`, {}, token);
   },
 
   // Recommendations
