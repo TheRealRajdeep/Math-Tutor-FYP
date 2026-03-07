@@ -4,8 +4,11 @@ python-dotenv
 openai
 psycopg2-binary
 inngest
+passlib[argon2]>=1.7.4
 argon2-cffi>=21.3.0
 PyJWT
+python-multipart
+email-validator
 
 # Optional / recommended
 alembic>=1.11        # DB migrations
