@@ -6,50 +6,106 @@ import { Link } from 'react-router-dom';
 import { api, type MockTest } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { Target, FileText, Info } from 'lucide-react';
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function isTargeted(test: MockTest) {
+  return test.test_type.toLowerCase().startsWith('targeted');
+}
+
+function TestTypeBadge({ test }: { test: MockTest }) {
+  if (isTargeted(test)) {
+    return (
+      <Badge variant="outline" className="bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700 text-xs">
+        <Target className="w-3 h-3 mr-1" /> Targeted
+      </Badge>
+    );
+  }
+  if (test.test_type.toLowerCase().includes('entry')) {
+    return (
+      <Badge variant="outline" className="text-xs">
+        Entry
+      </Badge>
+    );
+  }
+  if (test.test_type.toLowerCase().includes('scheduled')) {
+    return (
+      <Badge variant="outline" className="text-xs">
+        Scheduled
+      </Badge>
+    );
+  }
+  return null;
+}
+
+function StatusBadge({ status }: { status: MockTest['status'] }) {
+  if (status === 'completed')
+    return <Badge className="bg-green-600 text-white text-xs">Completed</Badge>;
+  if (status === 'in_progress')
+    return <Badge variant="secondary" className="text-xs">In Progress</Badge>;
+  return <Badge variant="outline" className="text-xs">Not Started</Badge>;
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
+
+function formatTestTitle(title: string) {
+  // If it's a targeted test with details in parens, just show the main part
+  // e.g. "Targeted Mock Test (Algebrax1...)" -> "Targeted Mock Test"
+  if (title.startsWith('Targeted Mock Test')) {
+    return 'Targeted Mock Test';
+  }
+  return title;
+}
 
 const MockTests = () => {
   const { token, isAuthenticated } = useAuth();
   const [tests, setTests] = useState<MockTest[]>([]);
-  const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [generatingTargeted, setGeneratingTargeted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [targetedError, setTargetedError] = useState<string | null>(null);
 
-  // Fetch existing tests on mount
   useEffect(() => {
-    const fetchTests = async () => {
-      if (!isAuthenticated || !token) {
-        setFetching(false);
-        return;
-      }
-
-      try {
-        const fetchedTests = await api.getMockTests(token);
-        setTests(fetchedTests);
-      } catch (error) {
-        console.error('Failed to fetch tests:', error);
-      } finally {
-        setFetching(false);
-      }
-    };
-
-    fetchTests();
+    if (!isAuthenticated || !token) { setFetching(false); return; }
+    api.getMockTests(token)
+      .then(setTests)
+      .catch(() => {})
+      .finally(() => setFetching(false));
   }, [isAuthenticated, token]);
 
-  const generateNewTest = async () => {
-    if (!token) {
-      console.error('Not authenticated');
-      return;
-    }
-
-    setLoading(true);
+  async function generateNewTest() {
+    if (!token) return;
+    setError(null);
+    setGenerating(true);
     try {
       const newTest = await api.generateMockTest(token);
-      setTests((prev) => [newTest, ...prev]);
-    } catch (error) {
-      console.error('Failed to generate test:', error);
+      // Refresh full list so ordering + data is accurate
+      const updated = await api.getMockTests(token);
+      setTests(updated);
+      void newTest; // used above via refresh
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate test');
     } finally {
-      setLoading(false);
+      setGenerating(false);
     }
-  };
+  }
+
+  async function generateTargetedTest() {
+    if (!token) return;
+    setTargetedError(null);
+    setGeneratingTargeted(true);
+    try {
+      await api.generateTargetedTest(token);
+      const updated = await api.getMockTests(token);
+      setTests(updated);
+    } catch (err: any) {
+      setTargetedError(err.message || 'Failed to generate targeted test');
+    } finally {
+      setGeneratingTargeted(false);
+    }
+  }
 
   if (fetching) {
     return (
@@ -57,7 +113,7 @@ const MockTests = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Mock Tests</h1>
-            <p className="text-muted-foreground">Practice with RMO Entry level mock tests</p>
+            <p className="text-muted-foreground">Practice with RMO-level mock tests</p>
           </div>
         </div>
         <div className="grid gap-4">
@@ -79,92 +135,168 @@ const MockTests = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* ── header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Mock Tests</h1>
-          <p className="text-muted-foreground">Practice with RMO Entry level mock tests</p>
+          <p className="text-muted-foreground">Practice with RMO-level mock tests</p>
         </div>
-        <Button variant="default" onClick={generateNewTest} disabled={loading || !isAuthenticated}>
-          {loading ? 'Generating...' : 'Generate New Test'}
-        </Button>
+
+        <div className="flex flex-col gap-2 sm:items-end">
+          {/* Targeted test button */}
+          <Button
+            variant="default"
+            onClick={generateTargetedTest}
+            disabled={generatingTargeted || !isAuthenticated}
+            className="bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            <Target className="w-4 h-4 mr-2" />
+            {generatingTargeted ? 'Generating…' : 'Generate Targeted Test'}
+          </Button>
+
+          {/* Standard test button */}
+          <Button
+            variant="outline"
+            onClick={generateNewTest}
+            disabled={generating || !isAuthenticated}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            {generating ? 'Generating…' : 'Generate Standard Test'}
+          </Button>
+        </div>
       </div>
 
-      {/* Tests List */}
+      {/* ── targeted test explainer ── */}
+      <Card className="border-violet-200 bg-violet-50/50 dark:bg-violet-900/10 dark:border-violet-800">
+        <CardContent className="flex items-start gap-3 pt-4 pb-4">
+          <Info className="w-4 h-4 text-violet-600 dark:text-violet-400 mt-0.5 shrink-0" />
+          <p className="text-sm text-violet-800 dark:text-violet-200">
+            <span className="font-semibold">Targeted Tests</span> are personalised to your weak
+            domains — weaker areas get more questions and difficulty is calibrated to your current
+            level so you build confidence while being challenged. Standard tests use a fixed
+            distribution at RMO entry difficulty.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ── error banners ── */}
+      {error && (
+        <p className="text-sm text-destructive rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2">
+          {error}
+        </p>
+      )}
+      {targetedError && (
+        <p className="text-sm text-destructive rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2">
+          {targetedError}
+        </p>
+      )}
+
+      {/* ── tests list ── */}
       <div className="grid gap-4">
         {tests.length === 0 ? (
           <Card>
-            <CardContent className="py-10 text-center">
-              <p className="text-muted-foreground mb-4">No tests generated yet.</p>
-              <Button variant="default" onClick={generateNewTest} disabled={loading || !isAuthenticated}>
-                Generate Your First Test
-              </Button>
+            <CardContent className="py-12 text-center space-y-4">
+              <p className="text-muted-foreground">No tests yet.</p>
+              <div className="flex justify-center gap-3">
+                <Button onClick={generateTargetedTest} disabled={generatingTargeted} className="bg-violet-600 hover:bg-violet-700 text-white">
+                  <Target className="w-4 h-4 mr-2" />
+                  Generate Targeted Test
+                </Button>
+                <Button variant="outline" onClick={generateNewTest} disabled={generating}>
+                  Generate Standard Test
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
           tests.map((test) => (
-            <Card key={test.test_id}>
+            <Card
+              key={test.test_id}
+              className={isTargeted(test) ? 'border-violet-200' : ''}
+            >
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>{test.test_type}</CardTitle>
-                    <CardDescription>
-                      {test.total_questions} questions • Difficulty: {test.difficulty_range}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base leading-snug">{formatTestTitle(test.test_type)}</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      {test.total_questions} questions · Difficulty {test.difficulty_range}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {test.status === 'completed' ? (
-                      <Badge variant="default" className="bg-green-600">Completed</Badge>
-                    ) : test.status === 'in_progress' ? (
-                      <Badge variant="secondary">In Progress</Badge>
-                    ) : (
-                      <Badge variant="outline">Not Started</Badge>
-                    )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <TestTypeBadge test={test} />
+                    <StatusBadge status={test.status} />
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {test.status === 'completed' && test.grade && (
-                    <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                      <h4 className="text-sm font-semibold mb-2 text-green-800 dark:text-green-200">Test Results</h4>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Score: </span>
-                          <span className="font-semibold text-green-700 dark:text-green-300">
-                            {test.grade.correct_answers}/{test.grade.total_problems}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Average: </span>
-                          <span className="font-semibold text-green-700 dark:text-green-300">
-                            {test.grade.average_percentage.toFixed(1)}%
-                          </span>
-                        </div>
+
+              <CardContent className="space-y-4">
+                {/* Results block */}
+                {test.status === 'completed' && test.grade && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <h4 className="text-sm font-semibold mb-2 text-green-800">Results</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Score </span>
+                        <span className="font-semibold text-green-700">
+                          {test.grade.correct_answers}/{test.grade.total_problems}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Average </span>
+                        <span className="font-semibold text-green-700">
+                          {test.grade.average_percentage.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
-                  )}
-
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Domain Distribution:</h4>
-                    <div className="flex gap-2 flex-wrap">
-                      {Object.entries(test.domain_distribution).map(([domain, count]) => (
-                        <Badge key={domain} variant="secondary">
-                          {domain}: {count}
-                        </Badge>
-                      ))}
-                    </div>
                   </div>
-                  {test.status !== 'completed' && (
-                    <Button asChild>
-                      <Link to={`/mock-tests/${test.test_id}/take`}>Start Test</Link>
-                    </Button>
-                  )}
-                  {test.status === 'completed' && (
-                    <Button asChild variant="outline">
-                      <Link to={`/mock-tests/${test.test_id}/take`}>View Test</Link>
-                    </Button>
-                  )}
+                )}
+
+                {/* Domain distribution */}
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Domain Distribution</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const domains = Object.entries(test.domain_distribution)
+                        .sort(([, a], [, b]) => b - a); // Sort by count descending
+                      const topDomains = domains.slice(0, 5);
+                      const remainingCount = domains.length - 5;
+                      
+                      return (
+                        <>
+                          {topDomains.map(([domain, count]) => (
+                            <Badge
+                              key={domain}
+                              variant="secondary"
+                              className={isTargeted(test) ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : ''}
+                            >
+                              {domain}: {count}
+                            </Badge>
+                          ))}
+                          {remainingCount > 0 && (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              +{remainingCount} more
+                            </Badge>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
+
+                {/* CTA */}
+                <Button
+                  asChild
+                  variant={test.status === 'completed' ? 'outline' : 'default'}
+                  className={
+                    test.status !== 'completed' && isTargeted(test)
+                      ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                      : ''
+                  }
+                >
+                  <Link to={`/mock-tests/${test.test_id}/take`}>
+                    {test.status === 'completed' ? 'View Test' : 'Start Test'}
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ))

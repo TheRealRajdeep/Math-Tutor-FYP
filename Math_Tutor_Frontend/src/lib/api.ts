@@ -206,6 +206,10 @@ export const api = {
     return apiRequest<MockTest>('/api/entry_mock_test', {}, token);
   },
 
+  generateTargetedTest: async (token?: string | null): Promise<MockTest> => {
+    return apiRequest<MockTest>('/api/mock_tests/targeted', { method: 'POST' }, token);
+  },
+
   getMockTests: async (token?: string | null): Promise<MockTest[]> => {
     return apiRequest<MockTest[]>('/api/mock_tests', {}, token);
   },

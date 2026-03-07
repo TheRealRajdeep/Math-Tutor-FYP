@@ -7,7 +7,10 @@ from services.grading_service import (
     verify_solution_logical_flow,
     calculate_final_score,
 )
-from services.mock_test_service import generate_entry_mock_test_for_user
+from services.mock_test_service import (
+    generate_entry_mock_test_for_user,
+    generate_weakness_mock_test,
+)
 import json
 
 router = APIRouter()
@@ -184,6 +187,86 @@ def get_user_mock_tests(current_user: UserOut = Depends(get_current_user)):
     except Exception as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Error fetching mock tests: {str(e)}")
+
+
+@router.post("/mock_tests/targeted")
+def generate_targeted_test(current_user: UserOut = Depends(get_current_user)):
+    """
+    Generate a Targeted Mock Test personalised to the current student's weak domains.
+
+    Uses grading history to:
+    - Allocate more questions to weaker domains (proportional to failure rate).
+    - Target difficulty just below the student's current level per domain
+      (confidence-building), scaling up as they improve.
+
+    The returned test has the same shape as any other mock test and can be
+    taken via the standard /mock-tests/:testId/take route.
+    """
+    try:
+        test_id = generate_weakness_mock_test(current_user.id)
+        if test_id == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Could not generate targeted test — no problems found for your domains.",
+            )
+
+        # Return full test object (same shape as getMockTests list items)
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT test_id, test_type, created_at, problems, COALESCE(status, 'not_started') FROM mock_tests WHERE test_id = %s",
+                (test_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=500, detail="Test created but could not be retrieved")
+
+            t_id, t_type, t_created, t_problems_json, t_status = row
+            problems_data = json.loads(t_problems_json) if isinstance(t_problems_json, str) else t_problems_json
+            problem_ids = [p["problem_id"] for p in problems_data]
+
+            all_problems = []
+            domain_counts: dict = {}
+            if problem_ids:
+                cur.execute(
+                    "SELECT problem_id, domain, problem, solution, answer, difficulty_level, created_at FROM omni_math_data WHERE problem_id = ANY(%s)",
+                    (problem_ids,),
+                )
+                for pr in cur.fetchall():
+                    domains = parse_domains(pr[1])
+                    all_problems.append({
+                        "problem_id": pr[0], "domain": domains, "problem": pr[2],
+                        "solution": pr[3], "answer": pr[4], "difficulty_level": pr[5],
+                        "created_at": pr[6],
+                    })
+                    for d in domains:
+                        domain_counts[d] = domain_counts.get(d, 0) + 1
+
+            difficulties = [p["difficulty_level"] for p in all_problems if p["difficulty_level"]]
+            diff_range = (
+                f"{min(difficulties):.1f} - {max(difficulties):.1f}" if difficulties else "N/A"
+            )
+
+            return {
+                "test_id": t_id,
+                "test_type": t_type,
+                "difficulty_range": diff_range,
+                "total_questions": len(all_problems),
+                "domain_distribution": domain_counts,
+                "problems": all_problems,
+                "created_at": t_created.isoformat() if t_created else None,
+                "status": t_status,
+                "grade": None,
+            }
+        finally:
+            cur.close()
+            conn.close()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating targeted test: {str(e)}")
 
 
 @router.post("/mock_tests/{test_id}/submit")
