@@ -24,6 +24,7 @@ const Problems = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<GradingResult | null>(null);
   const [showSubmissionDialog, setShowSubmissionDialog] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // Cancellation token: each new submission increments this.
   // Any poll callback that doesn't hold the latest token is silently dropped,
@@ -340,62 +341,37 @@ const Problems = () => {
             </div>
           ) : (
             <div className="space-y-4 py-4">
-              <div className={`p-4 rounded-lg border ${submissionResult.answer_is_correct
-                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  {submissionResult.answer_is_correct ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                  )}
-                  <span className={`text-lg font-semibold ${submissionResult.answer_is_correct
-                    ? 'text-green-800 dark:text-green-200'
-                    : 'text-red-800 dark:text-red-200'
+              {(() => {
+                const isCorrect = submissionResult.answer_is_correct && submissionResult.percentage > 0;
+                return (
+                  <div className={`p-4 rounded-lg border ${isCorrect
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                     }`}>
-                    {submissionResult.answer_is_correct ? 'Correct Answer' : 'Incorrect Answer'}
-                  </span>
-                </div>
-
-                <div className="mt-2 text-sm text-muted-foreground">
-                  <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
-                </div>
-
-                {(submissionResult.hint_provided || submissionResult.error_summary) && (
-                  <div className={`mt-3 pt-3 border-t ${submissionResult.answer_is_correct
-                    ? 'border-green-200 dark:border-green-800'
-                    : 'border-red-200 dark:border-red-800'
-                    }`}>
-                    <p className={`text-sm font-semibold mb-2 ${submissionResult.answer_is_correct
-                      ? 'text-green-800 dark:text-green-200'
-                      : 'text-red-800 dark:text-red-200'
-                      }`}>Tutor Feedback:</p>
-                    {submissionResult.hint_provided ? (
-                      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
-                        <ReactMarkdown
-                          components={{
-                            p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
-                            strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 ml-1">{children}</ol>,
-                            ul: ({ children }) => <ul className="list-disc list-inside space-y-1 ml-1">{children}</ul>,
-                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                            h1: ({ children }) => <h1 className="font-semibold text-base text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h1>,
-                            h2: ({ children }) => <h2 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h2>,
-                            h3: ({ children }) => <h3 className="font-medium text-sm text-gray-800 dark:text-gray-200 mt-2 mb-1">{children}</h3>,
-                          }}
-                        >
-                          {submissionResult.hint_provided}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {submissionResult.error_summary}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 mb-2">
+                      {isCorrect ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      )}
+                      <span className={`text-lg font-semibold ${isCorrect
+                        ? 'text-green-800 dark:text-green-200'
+                        : 'text-red-800 dark:text-red-200'
+                        }`}>
+                        {isCorrect ? 'Correct Answer' : 'Incorrect Answer'}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <span className="font-semibold">Score: </span> {submissionResult.percentage.toFixed(0)}%
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })()}
+              {(submissionResult.hint_provided || submissionResult.error_summary) && (
+                <Button variant="outline" className="w-full" onClick={() => setShowFeedbackModal(true)}>
+                  View Tutor Feedback
+                </Button>
+              )}
             </div>
           )}
 
@@ -413,6 +389,54 @@ const Problems = () => {
                 Close
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wider feedback modal */}
+      <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {submissionResult && submissionResult.answer_is_correct && submissionResult.percentage > 0 ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              )}
+              Tutor Feedback — Problem #{selectedProblem?.problem_id}
+            </DialogTitle>
+            <DialogDescription>
+              Score: {submissionResult?.percentage.toFixed(0)}%
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-1">
+            {submissionResult?.hint_provided ? (
+              <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2 py-2">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 ml-1">{children}</ol>,
+                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 ml-1">{children}</ul>,
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    h1: ({ children }) => <h1 className="font-semibold text-base text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h1>,
+                    h2: ({ children }) => <h2 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mt-3 mb-1">{children}</h2>,
+                    h3: ({ children }) => <h3 className="font-medium text-sm text-gray-800 dark:text-gray-200 mt-2 mb-1">{children}</h3>,
+                  }}
+                >
+                  {submissionResult.hint_provided}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-700 dark:text-gray-300 py-2">
+                {submissionResult?.error_summary}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFeedbackModal(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
