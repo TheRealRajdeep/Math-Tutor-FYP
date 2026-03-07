@@ -19,14 +19,15 @@ const escapeHtml = (s: string) =>
  */
 function processPlainChunk(text: string) {
   if (!text) return '';
-  const BOLD_RE = /\[b\]([\s\S]*?)\[\/b\]/gi;
+  // Match [b]...[/b] OR **...**
+  const BOLD_RE = /(\[b\]|\*\*)([\s\S]*?)(\[\/b\]|\*\*)/gi;
   let html = '';
   let lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = BOLD_RE.exec(text)) !== null) {
     const before = text.slice(lastIndex, m.index);
     if (before) html += escapeHtml(before).replace(/\r?\n/g, '<br/>');
-    const inner = m[1] ?? '';
+    const inner = m[2] ?? ''; // m[2] is the content inside
     html += `<strong>${escapeHtml(inner)}</strong>`;
     lastIndex = BOLD_RE.lastIndex;
   }

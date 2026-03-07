@@ -367,21 +367,12 @@ export const api = {
   },
 
   // Tutor (RAG)
-  generateHint: async (query: string): Promise<string> => {
-    const response = await fetch(`${API_BASE_URL}/api/rag/hint`, {
+  chatWithTutor: async (query: string, token?: string | null): Promise<string> => {
+    const data = await apiRequest<{ response: string }>('/api/rag/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ query }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return typeof data === 'string' ? data : data.hint || data.message || 'Hint generated';
+    }, token);
+    return data.response;
   },
 
   // Auth

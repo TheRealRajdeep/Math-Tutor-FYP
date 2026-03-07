@@ -1,6 +1,7 @@
 # backend/services/tutor_service.py
 import os
 import logging
+import json
 from typing import Optional
 
 from sentence_transformers import SentenceTransformer
@@ -11,9 +12,6 @@ from openai import OpenAI
 
 load_dotenv()
 logger = logging.getLogger(__name__)
-
-# Use fresh client instantiation in functions
-# openai.api_key = os.getenv("OPENAI_API_KEY")
 
 _MODEL = None
 
@@ -50,11 +48,6 @@ def generate_diagnostic_feedback(
 ) -> Optional[str]:
     """
     Generate deep, explanatory feedback for a submission.
-    
-    The feedback handles three scenarios:
-    - Correct: Reinforces why it's correct and suggests advanced insights.
-    - Partial/Lucky: Points out logical flaws despite the correct answer.
-    - Incorrect: Identifies errors and explains the correct reasoning.
     """
     try:
         query = problem or student_solution or student_answer
@@ -90,7 +83,6 @@ def generate_diagnostic_feedback(
             logger.error("OpenAI API key not configured; cannot generate feedback.")
             return "Error: OpenAI API key is missing."
 
-        # Build optional sections only when data is available
         student_answer_section = f"Student's Answer: {student_answer}" if student_answer else ""
         correct_answer_section = f"Correct Answer: {correct_answer}" if correct_answer else ""
         student_solution_section = (
@@ -121,20 +113,17 @@ Your task is to write detailed, constructive feedback.
 If the student is CORRECT:
 1. **Affirmation**: Confirm they got it right and briefly mention what they did well.
 2. **Deepen Understanding**: Suggest a way to verify the result or mention a related advanced concept (optional).
-3. **Challenge**: Briefly ask "What if..." to push their thinking (e.g., "What if the angle was negative?").
+3. **Challenge**: Briefly ask "What if..." to push their thinking.
 
 If the student is INCORRECT:
-1. **What Went Wrong**: Pinpoint the specific error(s) in the student's reasoning or calculation.
+1. **What Went Wrong**: Pinpoint the specific error(s).
 2. **Key Concept**: Identify the underlying concept to revisit.
-3. **Guidance**: Walk through the correct approach step-by-step (show the thinking, not just the answer).
+3. **Guidance**: Walk through the correct approach step-by-step.
 4. **Encouragement**: End with a motivational note.
 
 Write in clear, friendly language suitable for a student. Be thorough."""
 
-        logger.info(f"--- Tutor Feedback Prompt ---\n{prompt}\n------------------------------")
-
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        # Check if model starts with o1 or o3 to determine token parameter
         model_name = os.getenv("RAG_HINT_MODEL", "gpt-4o")
         is_reasoning_model = model_name.startswith("o1") or model_name.startswith("o3")
         
@@ -143,36 +132,138 @@ Write in clear, friendly language suitable for a student. Be thorough."""
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a knowledgeable and patient math tutor. "
-                        "Your feedback should be thorough, clear, and genuinely helpful."
-                    ),
+                    "content": "You are a knowledgeable and patient math tutor.",
                 },
                 {"role": "user", "content": prompt},
             ]
         }
         
         if is_reasoning_model:
-            # o1/o3 models share the max_completion_tokens budget between
-            # internal reasoning tokens and visible output tokens.
-            # 1000 is almost entirely consumed by reasoning, leaving nothing
-            # for the actual response.  Use a much larger ceiling so the model
-            # has room to think AND write a full feedback paragraph.
             completion_args["max_completion_tokens"] = 8000
         else:
             completion_args["max_tokens"] = 1500
 
         response = client.chat.completions.create(**completion_args)
-
         feedback = response.choices[0].message.content.strip()
         
-        if not feedback:
-            logger.warning("Feedback generation returned empty string.")
-            return "The solution appears incorrect, but I couldn't generate detailed feedback. Please review the reference solution and comparing your steps."
-            
-        logger.info(f"Generated detailed feedback ({len(feedback)} chars)")
-        return feedback
+        return feedback or "The solution appears incorrect, but I couldn't generate detailed feedback."
 
     except Exception as exc:
         logger.exception("generate_diagnostic_feedback error")
         return f"Error generating feedback: {str(exc)}"
+
+
+def generate_tutor_chat_response(student_id: int, query: str) -> str:
+    """
+    Generate a response for the general AI Tutor chat.
+    
+    1. Fetches student context (weaknesses, recent error themes).
+    2. Performs RAG to find relevant math concepts/problems from omni_math_data.
+    3. Enforces strict domain restriction (math/prep only).
+    """
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return "Configuration Error: OpenAI API key is missing."
+
+        # 1. Fetch Student Context
+        conn = get_db_connection()
+        context_str = ""
+        try:
+            cur = conn.cursor()
+            
+            # Weakest domains
+            cur.execute("""
+                WITH Stats AS (
+                    SELECT TRIM(d.domain) as domain, AVG(gr.percentage) as avg_score
+                    FROM grading_results gr
+                    JOIN test_submissions ts ON ts.submission_id = gr.submission_id
+                    JOIN omni_math_data omd ON omd.problem_id = gr.problem_id
+                    JOIN LATERAL unnest(string_to_array(omd.domain, ',')) AS d(domain) ON TRUE
+                    WHERE ts.student_id = %s
+                    GROUP BY 1
+                )
+                SELECT domain FROM Stats WHERE avg_score < 60 ORDER BY avg_score ASC LIMIT 3
+            """, (str(student_id),))
+            weak_domains = [r[0] for r in cur.fetchall()]
+            
+            # Recent error themes
+            cur.execute("""
+                SELECT DISTINCT gr.error_summary
+                FROM grading_results gr
+                JOIN test_submissions ts ON ts.submission_id = gr.submission_id
+                WHERE ts.student_id = %s 
+                  AND gr.answer_is_correct = FALSE
+                  AND gr.error_summary IS NOT NULL
+                  AND gr.graded_at >= NOW() - INTERVAL '14 days'
+                LIMIT 5
+            """, (str(student_id),))
+            errors = [r[0] for r in cur.fetchall()]
+            
+            context_parts = []
+            if weak_domains:
+                context_parts.append(f"Student's weak domains: {', '.join(weak_domains)}.")
+            if errors:
+                context_parts.append(f"Recent error patterns: {'; '.join(errors)}.")
+            
+            context_str = "\n".join(context_parts)
+            
+            # 2. RAG for Math Context
+            model = _get_semantic_model()
+            emb = model.encode(query).tolist()
+            
+            cur.execute("""
+                SELECT problem, solution, answer
+                FROM omni_math_data
+                ORDER BY embedding <-> %s::vector
+                LIMIT 2;
+            """, (emb,))
+            rag_rows = cur.fetchall()
+            
+            rag_context = ""
+            if rag_rows:
+                rag_context = "Reference Math Problems:\n" + "\n\n".join(
+                    [f"Problem: {r[0]}\nSolution: {r[1]}" for r in rag_rows]
+                )
+
+        finally:
+            cur.close()
+            conn.close()
+
+        # 3. Construct Prompt
+        system_prompt = f"""You are an expert Math Olympiad tutor.
+Your goal is to help the student prepare for competitions like RMO, USAMO, and IMO.
+
+Student Context:
+{context_str}
+
+Reference Material (use if relevant to the query):
+{rag_context}
+
+STRICT RULES:
+1. **Domain Restriction**: You ONLY answer questions related to mathematics, olympiad preparation, study strategies, specific problems, or the student's performance.
+2. **Refusal**: If the user asks about anything else (sports, weather, politics, general chat like "how are you"), politely refuse and steer them back to math.
+   - Example Refusal: "I'm here to help you with math. Let's focus on your preparation."
+3. **Personalisation**: Use the Student Context to tailor your advice. If they ask "what should I study?", refer to their weak domains.
+4. **Tone**: Encouraging, professional, and clear. Use LaTeX for math ($...$).
+
+User Query:
+{query}
+"""
+
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.getenv("TUTOR_CHAT_MODEL", "gpt-4o"),
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query}
+            ],
+            temperature=0.5,
+            max_tokens=1000
+        )
+        
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        logger.error(f"Tutor chat failed: {str(e)}")
+        return "I encountered an error while thinking. Please try asking again."
