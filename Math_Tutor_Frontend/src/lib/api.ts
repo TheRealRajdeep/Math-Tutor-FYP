@@ -84,6 +84,32 @@ export interface TestHistoryEntry {
   date: string | null;
 }
 
+export interface RecommendedResource {
+  recommendation_id: number;
+  material_id: number;
+  title: string;
+  url: string;
+  type: 'video' | 'article' | 'practice' | 'cheat_sheet' | string;
+  description: string;
+  is_completed: boolean;
+  icon: string;
+  source: 'db' | 'curated';
+}
+
+export interface DomainRecommendation {
+  domain: string;
+  avg_score: number;
+  strength_level: 'weak' | 'developing' | 'strong';
+  error_themes: string[];
+  resources: RecommendedResource[];
+  study_tip: string | null;
+}
+
+export interface RecommendationsResponse {
+  weak_domains: DomainRecommendation[];
+  all_completed: boolean;
+}
+
 export interface PracticeSessionState {
   problems_attempted: number;
   problems_correct: number;
@@ -368,6 +394,23 @@ export const api = {
 
   getTaskHistory: async (limit: number = 30, token?: string | null): Promise<any> => {
     return apiRequest(`/api/curriculum/daily-tasks/history?limit=${limit}`, {}, token);
+  },
+
+  // Recommendations
+  getRecommendations: async (maxDomains = 3, token?: string | null): Promise<RecommendationsResponse> => {
+    return apiRequest<RecommendationsResponse>(
+      `/api/recommendations?max_domains=${maxDomains}`,
+      {},
+      token,
+    );
+  },
+
+  completeRecommendation: async (recommendationId: number, token?: string | null): Promise<{ recommendation_id: number; is_completed: boolean }> => {
+    return apiRequest(
+      `/api/recommendations/${recommendationId}/complete`,
+      { method: 'POST' },
+      token,
+    );
   },
 
   // Practice Sessions

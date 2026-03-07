@@ -25,7 +25,7 @@ from routes.mock_test import mock_test_generation as mock_test
 from routes.submissions import upload as submissions_upload
 from routes.submissions import grading as submissions_grading
 from auth import routes as auth_routes
-from routes import curriculum, practice, analytics, practice_sessions
+from routes import curriculum, practice, analytics, practice_sessions, recommendations
 
 from db.session import engine
 from db.base import Base
@@ -77,6 +77,7 @@ app.include_router(curriculum.router, prefix="/api")
 app.include_router(practice.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(practice_sessions.router, prefix="/api")
+app.include_router(recommendations.router, prefix="/api")
 
 # Inngest requires INNGEST_SIGNING_KEY (from Inngest Cloud dashboard). Skip serve when missing so the app can run locally.
 if os.getenv("INNGEST_SIGNING_KEY"):

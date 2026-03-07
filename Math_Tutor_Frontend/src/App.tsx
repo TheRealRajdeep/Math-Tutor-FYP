@@ -12,6 +12,7 @@ import Tutor from './pages/Tutor';
 import Settings from './pages/Settings';
 import Curriculum from './pages/Curriculum';
 import Practice from './pages/Practice';
+import Recommendations from './pages/Recommendations';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +39,7 @@ function AppRoutes() {
             <Route path="problems" element={<Problems />} />
             <Route path="progress" element={<Progress />} />
             <Route path="practice" element={<Practice />} />
+            <Route path="recommendations" element={<Recommendations />} />
             <Route path="tutor" element={<Tutor />} />
             <Route path="curriculum" element={<Curriculum />} />
             <Route path="settings" element={<Settings />} />
