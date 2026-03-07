@@ -144,6 +144,24 @@ CREATE TABLE IF NOT EXISTS user_curriculum_selections (
   UNIQUE(student_id)
 );
 
+-- Table: practice_sessions
+-- Tracks adaptive practice sessions per student per domain.
+-- current_difficulty is adjusted after each problem (up on >=80%, down on <50%).
+CREATE TABLE IF NOT EXISTS practice_sessions (
+  session_id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mock_test_id INTEGER REFERENCES mock_tests(test_id),
+  domain TEXT NOT NULL,
+  current_difficulty FLOAT NOT NULL DEFAULT 3.0,
+  problems_attempted INTEGER NOT NULL DEFAULT 0,
+  problems_correct INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  session_problems JSONB NOT NULL DEFAULT '[]'::jsonb,
+  current_problem_id INTEGER,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
 -- Table: daily_tasks
 CREATE TABLE IF NOT EXISTS daily_tasks (
   task_id SERIAL PRIMARY KEY,

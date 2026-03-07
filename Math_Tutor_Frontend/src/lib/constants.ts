@@ -5,7 +5,8 @@ import {
   Upload, 
   TrendingUp, 
   MessageCircle, 
-  GraduationCap
+  GraduationCap,
+  Dumbbell,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -19,6 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/mock-tests', label: 'Mock Tests', icon: FileText },
   { href: '/problems', label: 'Problem Practice', icon: BookOpen },
   { href: '/submissions', label: 'Submissions', icon: Upload },
+  { href: '/practice', label: 'Practice', icon: Dumbbell },
   { href: '/progress', label: 'Progress & Analytics', icon: TrendingUp },
   { href: '/tutor', label: 'AI Tutor', icon: MessageCircle },
   { href: '/curriculum', label: 'Curriculum', icon: GraduationCap },

@@ -84,6 +84,57 @@ export interface TestHistoryEntry {
   date: string | null;
 }
 
+export interface PracticeSessionState {
+  problems_attempted: number;
+  problems_correct: number;
+  target: number;
+  current_difficulty: number;
+  status: 'active' | 'completed';
+  session_problems?: Array<{
+    problem_id: number;
+    score: number;
+    is_correct: boolean;
+    difficulty: number;
+  }>;
+}
+
+export interface PracticeSession {
+  session_id: number;
+  mock_test_id: number;
+  domain: string;
+  current_problem: Problem | null;
+  session_state: PracticeSessionState;
+}
+
+export interface PracticeGradeResult {
+  score: {
+    percentage: number;
+    is_correct: boolean;
+    logical_flow_score: number;
+    error_summary: string | null;
+    answer_reasoning: string | null;
+  };
+  decision: 'harder' | 'same' | 'easier';
+  feedback_message: string;
+  next_difficulty: number;
+  session_complete: boolean;
+  problems_attempted: number;
+  problems_correct: number;
+  next_problem: Problem | null;
+}
+
+export interface PracticeSessionSummary {
+  session_id: number;
+  domain: string;
+  problems_attempted: number;
+  problems_correct: number;
+  current_difficulty: number;
+  status: 'active' | 'completed';
+  started_at: string | null;
+  completed_at: string | null;
+  accuracy: number;
+}
+
 export interface AnalyticsProfile {
   domains: DomainStat[];
   overall: {
@@ -131,6 +182,9 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
     const errorText = await response.text();
     let errorMessage = `API error: ${response.statusText}`;
     try {
@@ -310,6 +364,33 @@ export const api = {
 
   getTaskHistory: async (limit: number = 30, token?: string | null): Promise<any> => {
     return apiRequest(`/api/curriculum/daily-tasks/history?limit=${limit}`, {}, token);
+  },
+
+  // Practice Sessions
+  startPracticeSession: async (domain: string, token?: string | null): Promise<PracticeSession> => {
+    return apiRequest<PracticeSession>('/api/practice/session/start', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    }, token);
+  },
+
+  getPracticeSession: async (sessionId: number, token?: string | null): Promise<PracticeSession> => {
+    return apiRequest<PracticeSession>(`/api/practice/session/${sessionId}`, {}, token);
+  },
+
+  gradePracticeSession: async (
+    sessionId: number,
+    submissionId: number,
+    token?: string | null
+  ): Promise<PracticeGradeResult> => {
+    return apiRequest<PracticeGradeResult>(`/api/practice/session/${sessionId}/grade`, {
+      method: 'POST',
+      body: JSON.stringify({ submission_id: submissionId }),
+    }, token);
+  },
+
+  getMySessions: async (limit: number = 5, token?: string | null): Promise<PracticeSessionSummary[]> => {
+    return apiRequest<PracticeSessionSummary[]>(`/api/practice/sessions?limit=${limit}`, {}, token);
   },
 
   // Analytics
