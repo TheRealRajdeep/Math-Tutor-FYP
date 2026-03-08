@@ -9,6 +9,9 @@ argon2-cffi>=21.3.0
 PyJWT
 python-multipart
 email-validator
+requests
+sqlalchemy
+aiofiles
 
 # Optional / recommended
 alembic>=1.11        # DB migrations
