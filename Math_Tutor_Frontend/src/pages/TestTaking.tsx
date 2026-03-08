@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api, type MockTest, type GradingResult } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { ImagePlus, X } from 'lucide-react';
 
 // KaTeX
 import * as katex from 'katex';
@@ -134,6 +135,8 @@ const TestTaking = () => {
   const [test, setTest] = useState<MockTest | null>(null);
   const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittedProblems, setSubmittedProblems] = useState<Set<number>>(new Set());
   const [submittingTest, setSubmittingTest] = useState(false);
@@ -182,10 +185,34 @@ const TestTaking = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId, token]);
 
+  // Clear selected files when switching to a different problem
+  useEffect(() => {
+    setSelectedFiles([]);
+  }, [currentProblemIndex]);
+
+  // Create object URLs for previews and revoke on cleanup
+  useEffect(() => {
+    const urls = selectedFiles.map((f) => URL.createObjectURL(f));
+    setPreviewUrls(urls);
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [selectedFiles]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setSelectedFiles(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files).filter((f) => f.type.startsWith('image/'));
+      setSelectedFiles((prev) => {
+        const existingNames = new Set(prev.map((f) => f.name));
+        const deduplicated = newFiles.filter((f) => !existingNames.has(f.name));
+        return [...prev, ...deduplicated];
+      });
+      e.target.value = '';
     }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -418,16 +445,72 @@ const TestTaking = () => {
                       </div>
                     )}
 
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Upload Solution Images</label>
-                      <Input type="file" multiple accept="image/*" onChange={handleFileSelect} disabled={isCurrentProblemSubmitted} />
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium block">Upload Solution Images</label>
+                      <div
+                        className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 p-6 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                        onClick={() => !isCurrentProblemSubmitted && fileInputRef.current?.click()}
+                        onKeyDown={(e) => {
+                          if ((e.key === 'Enter' || e.key === ' ') && !isCurrentProblemSubmitted) {
+                            e.preventDefault();
+                            fileInputRef.current?.click();
+                          }
+                        }}
+                        role="button"
+                        tabIndex={isCurrentProblemSubmitted ? -1 : 0}
+                        aria-label="Add solution photos"
+                      >
+                        <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm font-medium">Click to add photos</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG, HEIC, etc. — you can add multiple</p>
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleFileSelect}
+                          disabled={isCurrentProblemSubmitted}
+                          className="hidden"
+                        />
+                      </div>
                       {selectedFiles.length > 0 && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {selectedFiles.length} file(s) selected
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">
+                            {selectedFiles.length} photo{selectedFiles.length !== 1 ? 's' : ''} selected
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {selectedFiles.map((file, idx) => (
+                              <div
+                                key={`${file.name}-${idx}`}
+                                className="relative group rounded-md overflow-hidden border bg-muted aspect-square"
+                              >
+                                <img
+                                  src={previewUrls[idx]}
+                                  alt={`Page ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveFile(idx);
+                                  }}
+                                  disabled={isCurrentProblemSubmitted}
+                                  className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:cursor-not-allowed"
+                                  aria-label={`Remove ${file.name}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                                <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1 text-[10px] text-white leading-4">
+                                  {idx + 1}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                       {isCurrentProblemSubmitted && (
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                        <p className="text-sm text-green-600 dark:text-green-400">
                           ✓ Solution submitted for this problem
                         </p>
                       )}
