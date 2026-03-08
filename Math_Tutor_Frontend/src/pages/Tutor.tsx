@@ -28,10 +28,42 @@ function stripForTTS(text: string): string {
     .trim();
 }
 
-const SpeechRecognitionAPI =
+// Web Speech API types (not in all TypeScript lib.dom.d.ts)
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: Event) => void) | null;
+  start(): void;
+  stop(): void;
+  abort?(): void;
+}
+interface SpeechRecognitionResultEvent extends Event {
+  readonly results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+interface SpeechRecognitionResult {
+  readonly length: number;
+  readonly isFinal: boolean;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+interface SpeechRecognitionAlternative {
+  readonly transcript: string;
+  readonly confidence: number;
+}
+
+const SpeechRecognitionAPI: (new () => SpeechRecognitionInstance) | false =
   typeof window !== 'undefined' &&
-  ((window as unknown as { SpeechRecognition?: new () => SpeechRecognition }).SpeechRecognition ||
-    (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognition }).webkitSpeechRecognition);
+  ((window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance }).SpeechRecognition ||
+    (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionInstance }).webkitSpeechRecognition) ||
+  false;
 
 type VoiceState = 'idle' | 'listening' | 'sending' | 'speaking';
 
@@ -137,7 +169,7 @@ const Tutor = () => {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: SpeechRecognitionResultEvent) => {
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
@@ -146,7 +178,7 @@ const Tutor = () => {
       setQuery(transcript);
       if (voiceConversation && transcript.trim()) {
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        const hasFinal = Array.from(event.results).some((r) => r.isFinal);
+        const hasFinal = Array.from(event.results).some((r: SpeechRecognitionResult) => r.isFinal);
         if (hasFinal) {
           silenceTimerRef.current = setTimeout(() => {
             silenceTimerRef.current = null;

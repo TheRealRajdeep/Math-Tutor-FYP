@@ -34,18 +34,12 @@ import {
   PolarGrid,
   PolarAngleAxis,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
-  Cell,
   Area,
   AreaChart,
-  Line,
-  LineChart,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -252,21 +246,25 @@ function CustomRadarTick({
   cx = 0,
   cy = 0,
 }: {
-  x?: number;
-  y?: number;
+  x?: number | string;
+  y?: number | string;
   payload?: { value: string };
-  cx?: number;
-  cy?: number;
+  cx?: number | string;
+  cy?: number | string;
 }) {
-  const dx = x - cx;
-  const dy = y - cy;
+  const nx = typeof x === 'number' ? x : Number(x) || 0;
+  const ny = typeof y === 'number' ? y : Number(y) || 0;
+  const ncx = typeof cx === 'number' ? cx : Number(cx) || 0;
+  const ncy = typeof cy === 'number' ? cy : Number(cy) || 0;
+  const dx = nx - ncx;
+  const dy = ny - ncy;
   const anchor = dx > 5 ? 'start' : dx < -5 ? 'end' : 'middle';
   const offsetX = dx > 5 ? 8 : dx < -5 ? -8 : 0;
   const offsetY = dy > 5 ? 12 : dy < -5 ? -8 : 0;
   return (
     <text
-      x={x + offsetX}
-      y={y + offsetY}
+      x={nx + offsetX}
+      y={ny + offsetY}
       textAnchor={anchor}
       fontSize={10}
       className="fill-muted-foreground font-medium uppercase tracking-wider"
