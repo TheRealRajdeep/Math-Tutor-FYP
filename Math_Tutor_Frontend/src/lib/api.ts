@@ -36,6 +36,8 @@ export interface Submission {
   status: 'pending' | 'processing' | 'graded';
 }
 
+export type Verdict = 'correct' | 'partially_correct' | 'incorrect';
+
 export interface GradingResult {
   problem_id: number;
   answer_is_correct: boolean;
@@ -46,6 +48,7 @@ export interface GradingResult {
   error_summary?: string;
   hint_provided?: string;
   final_score?: number;
+  verdict: Verdict;
 }
 
 export interface User {
@@ -197,9 +200,11 @@ export interface PracticeGradeResult {
   score: {
     percentage: number;
     is_correct: boolean;
+    verdict: Verdict;
     logical_flow_score: number;
     error_summary: string | null;
     answer_reasoning: string | null;
+    hint_provided: string | null;
   };
   decision: 'harder' | 'same' | 'easier';
   feedback_message: string;

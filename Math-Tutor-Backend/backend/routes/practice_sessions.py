@@ -105,6 +105,15 @@ def _pick_problem(cur, domain: str, difficulty: float, excluded_ids: list) -> Op
     }
 
 
+def get_verdict(percentage: float) -> str:
+    """Map a percentage score to a three-state verdict string."""
+    if percentage >= 90:
+        return "correct"
+    if percentage >= 50:
+        return "partially_correct"
+    return "incorrect"
+
+
 def _adaptive_params(percentage: float, difficulty: float) -> tuple[str, str, float]:
     """Return (decision, feedback_message, next_difficulty) given a score."""
     if percentage >= 80:
@@ -337,9 +346,11 @@ def grade_session_problem(
         score_data = calculate_final_score(ar, sr)
 
         percentage = float(score_data.get("percentage", 0.0))
-        is_correct = bool(ar.get("is_correct", False))
         logical_score = float(sr.get("logical_score", 0.0))
         error_summary = sr.get("error_summary")
+        verdict = get_verdict(percentage)
+        # Only count as correct when the score meets the strict threshold (>=90%)
+        is_correct = verdict == "correct"
 
         # ── persist grading result (feeds analytics) ────────────────────────
         cur.execute("""
@@ -406,13 +417,40 @@ def grade_session_problem(
 
         conn.commit()
 
+        # Generate rich feedback for any score below 100%
+        hint_provided = None
+        try:
+            from services.tutor_service import generate_diagnostic_feedback
+
+            cur.execute(
+                "SELECT problem, solution FROM omni_math_data WHERE problem_id = %s",
+                (cur_pid,),
+            )
+            prob_row = cur.fetchone()
+            problem_text = prob_row[0] if prob_row else ""
+            ref_sol = prob_row[1] if prob_row else ""
+
+            hint_provided = generate_diagnostic_feedback(
+                problem=problem_text,
+                student_answer=student_answer,
+                correct_answer=correct_answer or "",
+                student_solution=student_solution or "",
+                ref_solution=ref_sol,
+                is_correct=is_correct,
+                verdict=verdict,
+            )
+        except Exception as _fb_err:
+            logger.warning(f"Practice feedback generation failed: {_fb_err}")
+
         return {
             "score": {
                 "percentage": round(percentage, 1),
                 "is_correct": is_correct,
+                "verdict": verdict,
                 "logical_flow_score": round(logical_score, 3),
                 "error_summary": error_summary,
                 "answer_reasoning": ar.get("reasoning"),
+                "hint_provided": hint_provided,
             },
             "decision": decision,
             "feedback_message": feedback_msg,

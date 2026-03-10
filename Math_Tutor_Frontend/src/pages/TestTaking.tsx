@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api, type MockTest, type GradingResult } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { ImagePlus, X } from 'lucide-react';
+import { ImagePlus, X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 
 // KaTeX
 import * as katex from 'katex';
@@ -344,14 +344,17 @@ const TestTaking = () => {
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Problem {index + 1}</span>
                       <div className="flex items-center gap-2">
-                        {isTestCompleted && gradingResults.has(problem.problem_id) && (
-                          <Badge
-                            variant={gradingResults.get(problem.problem_id)?.answer_is_correct ? "default" : "destructive"}
-                            className={`text-xs ${gradingResults.get(problem.problem_id)?.answer_is_correct ? "bg-green-600" : "bg-red-600"}`}
-                          >
-                            {gradingResults.get(problem.problem_id)?.answer_is_correct ? "✓" : "✗"}
-                          </Badge>
-                        )}
+                        {isTestCompleted && gradingResults.has(problem.problem_id) && (() => {
+                          const r = gradingResults.get(problem.problem_id)!;
+                          const v = r.verdict ?? (r.percentage >= 90 ? 'correct' : r.percentage >= 50 ? 'partially_correct' : 'incorrect');
+                          if (v === 'correct') return (
+                            <Badge className="text-xs bg-green-600">✓</Badge>
+                          );
+                          if (v === 'partially_correct') return (
+                            <Badge className="text-xs bg-amber-500">~</Badge>
+                          );
+                          return <Badge variant="destructive" className="text-xs">✗</Badge>;
+                        })()}
                         {!isTestCompleted && submittedProblems.has(problem.problem_id) && (
                           <Badge variant="secondary" className="text-xs">Submitted</Badge>
                         )}
@@ -393,32 +396,71 @@ const TestTaking = () => {
 
               <div className="space-y-4">
                 {/* Show grading results if test is completed */}
-                {isTestCompleted && currentProblemResult && (
-                  <div className={`p-4 rounded-lg border ${currentProblemResult.answer_is_correct
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                      : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                    }`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-lg font-semibold ${currentProblemResult.answer_is_correct
-                          ? 'text-green-800 dark:text-green-200'
-                          : 'text-red-800 dark:text-red-200'
-                        }`}>
-                        {currentProblemResult.answer_is_correct ? '✓ Correct' : '✗ Incorrect'}
-                      </span>
-                      <Badge variant="secondary" className="text-xs">
-                        Score: {currentProblemResult.percentage.toFixed(1)}%
-                      </Badge>
-                    </div>
-                    {currentProblemResult.error_summary && (
-                      <div className="mt-3">
-                        <p className="text-sm font-medium mb-1 text-gray-800 dark:text-gray-200">AI Feedback:</p>
-                        <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {currentProblemResult.error_summary}
-                        </div>
+                {isTestCompleted && currentProblemResult && (() => {
+                  const r = currentProblemResult;
+                  const verdict = r.verdict ?? (r.percentage >= 90 ? 'correct' : r.percentage >= 50 ? 'partially_correct' : 'incorrect');
+                  const config = {
+                    correct: {
+                      bg: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+                      textColor: 'text-green-800 dark:text-green-200',
+                      feedbackBg: 'bg-green-50/50 dark:bg-green-900/10 border-green-100 dark:border-green-800',
+                      feedbackText: 'text-green-900/80 dark:text-green-200',
+                      icon: <CheckCircle2 className="w-5 h-5 inline mr-1" />,
+                      label: 'Correct',
+                    },
+                    partially_correct: {
+                      bg: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+                      textColor: 'text-amber-800 dark:text-amber-200',
+                      feedbackBg: 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800',
+                      feedbackText: 'text-amber-900/80 dark:text-amber-200',
+                      icon: <AlertCircle className="w-5 h-5 inline mr-1" />,
+                      label: 'Partially Correct',
+                    },
+                    incorrect: {
+                      bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+                      textColor: 'text-red-800 dark:text-red-200',
+                      feedbackBg: 'bg-muted/50 border-muted',
+                      feedbackText: 'text-muted-foreground',
+                      icon: <XCircle className="w-5 h-5 inline mr-1" />,
+                      label: 'Incorrect',
+                    },
+                  } as const;
+                  const cfg = config[verdict];
+                  return (
+                    <div className={`p-4 rounded-lg border space-y-3 ${cfg.bg}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-semibold ${cfg.textColor}`}>
+                          {cfg.icon}{cfg.label}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          Score: {r.percentage.toFixed(1)}%
+                        </Badge>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {/* Error / logic summary for non-perfect answers */}
+                      {r.error_summary && verdict !== 'correct' && (
+                        <div>
+                          <p className="text-sm font-medium mb-1 text-gray-800 dark:text-gray-200">Error detected:</p>
+                          <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                            {r.error_summary}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AI Tutor feedback */}
+                      {r.hint_provided && (
+                        <div className={`rounded-lg border p-3 ${cfg.feedbackBg}`}>
+                          <p className="text-xs font-medium uppercase tracking-wide mb-2 text-gray-600 dark:text-gray-400">
+                            AI Tutor Feedback
+                          </p>
+                          <div className={`text-sm whitespace-pre-wrap leading-relaxed ${cfg.feedbackText}`}>
+                            {r.hint_provided}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Show submission UI only if test is not completed */}
                 {!isTestCompleted && (

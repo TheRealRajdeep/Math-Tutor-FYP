@@ -19,6 +19,7 @@ import {
   X,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -452,29 +453,46 @@ function ResultView({
 }) {
   const { score, decision, feedback_message, session_complete, next_problem } = result;
   const pct = score.percentage;
+  // Derive verdict: prefer explicit field, fallback to percentage-based calc
+  const verdict = score.verdict ?? (pct >= 90 ? 'correct' : pct >= 50 ? 'partially_correct' : 'incorrect');
 
-  const scoreColor =
-    pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600';
-  const scoreBg =
-    pct >= 80 ? 'bg-emerald-50 border-emerald-200' : pct >= 50 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+  const verdictConfig = {
+    correct: {
+      icon: <CheckCircle2 className="w-5 h-5" />,
+      label: 'Correct',
+      textColor: 'text-emerald-700',
+      scoreColor: 'text-emerald-600',
+      bg: 'bg-emerald-50 border-emerald-200',
+    },
+    partially_correct: {
+      icon: <AlertCircle className="w-5 h-5" />,
+      label: 'Partially Correct',
+      textColor: 'text-amber-700',
+      scoreColor: 'text-amber-600',
+      bg: 'bg-amber-50 border-amber-200',
+    },
+    incorrect: {
+      icon: <XCircle className="w-5 h-5" />,
+      label: 'Incorrect',
+      textColor: 'text-red-700',
+      scoreColor: 'text-red-600',
+      bg: 'bg-red-50 border-red-200',
+    },
+  } as const;
+
+  const cfg = verdictConfig[verdict];
 
   return (
     <div className="space-y-4 max-w-xl mx-auto">
       {/* Score card */}
-      <Card className={`border ${scoreBg}`}>
+      <Card className={`border ${cfg.bg}`}>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
-            <div className={`text-5xl font-bold ${scoreColor}`}>{pct}%</div>
+            <div className={`text-5xl font-bold ${cfg.scoreColor}`}>{pct}%</div>
             <div>
-              {score.is_correct ? (
-                <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                  <CheckCircle2 className="w-5 h-5" /> Correct answer
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-red-600 font-semibold">
-                  <XCircle className="w-5 h-5" /> Incorrect answer
-                </div>
-              )}
+              <div className={`flex items-center gap-1.5 font-semibold ${cfg.textColor}`}>
+                {cfg.icon} {cfg.label}
+              </div>
               <p className="text-sm text-muted-foreground mt-0.5">
                 Logic score: {Math.round(score.logical_flow_score * 100)}%
               </p>
@@ -483,23 +501,43 @@ function ResultView({
         </CardContent>
       </Card>
 
-      {/* Adaptive feedback */}
+      {/* Adaptive difficulty message */}
       <Card>
-        <CardContent className="pt-5 space-y-2">
+        <CardContent className="pt-5 space-y-3">
           <div className="flex items-center justify-between">
             <p className="font-medium">{feedback_message}</p>
             <DecisionBadge decision={decision} />
           </div>
-          {score.error_summary && (
+
+          {/* Error / logic summary */}
+          {score.error_summary && verdict !== 'correct' && (
             <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Error: </span>
+              <span className="font-medium text-foreground">Error detected: </span>
               {score.error_summary}
             </div>
           )}
-          {score.answer_reasoning && !score.is_correct && (
-            <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Feedback: </span>
-              {score.answer_reasoning}
+
+          {/* AI tutor feedback — shown for any non-perfect result */}
+          {score.hint_provided && verdict !== 'correct' && (
+            <div className="rounded-lg border px-4 py-3 text-sm space-y-1">
+              <p className="font-medium text-foreground text-xs uppercase tracking-wide mb-2">
+                AI Tutor Feedback
+              </p>
+              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {score.hint_provided}
+              </p>
+            </div>
+          )}
+
+          {/* For correct answers, still show brief positive feedback if available */}
+          {score.hint_provided && verdict === 'correct' && (
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-sm space-y-1">
+              <p className="font-medium text-emerald-800 text-xs uppercase tracking-wide mb-2">
+                AI Tutor Feedback
+              </p>
+              <p className="text-emerald-900/70 whitespace-pre-wrap leading-relaxed">
+                {score.hint_provided}
+              </p>
             </div>
           )}
         </CardContent>

@@ -44,10 +44,14 @@ def generate_diagnostic_feedback(
     student_solution: str,
     ref_solution: str,
     is_correct: bool = False,
+    verdict: Optional[str] = None,
     limit: int = 3,
 ) -> Optional[str]:
     """
     Generate deep, explanatory feedback for a submission.
+
+    verdict can be 'correct' (>=90%), 'partially_correct' (50-90%), or 'incorrect' (<50%).
+    Falls back to deriving from is_correct when not provided.
     """
     try:
         query = problem or student_solution or student_answer
@@ -92,7 +96,39 @@ def generate_diagnostic_feedback(
             f"Reference Solution:\n{ref_solution}" if ref_solution else ""
         )
         
-        verdict_context = "The student's answer is marked as CORRECT." if is_correct else "The student's answer is marked as INCORRECT."
+        # Resolve the effective verdict
+        if verdict is None:
+            effective_verdict = "correct" if is_correct else "incorrect"
+        else:
+            effective_verdict = verdict
+
+        if effective_verdict == "correct":
+            verdict_context = "The student's answer is marked as CORRECT (score ≥ 90%)."
+            feedback_instructions = """Your task is to write detailed, constructive feedback.
+
+Since the student is CORRECT:
+1. **Affirmation**: Confirm they got it right and briefly highlight what they did well.
+2. **Deepen Understanding**: Suggest a way to verify the result or mention a related advanced concept.
+3. **Challenge**: Briefly pose a "What if…" extension to push their thinking further."""
+        elif effective_verdict == "partially_correct":
+            verdict_context = "The student's answer is marked as PARTIALLY CORRECT (score between 50–90%): they demonstrated some correct reasoning but made errors that prevented a fully correct solution."
+            feedback_instructions = """Your task is to write detailed, constructive feedback.
+
+Since the student is PARTIALLY CORRECT:
+1. **What They Got Right**: Acknowledge the correct steps or ideas in their work.
+2. **What Went Wrong**: Pinpoint the specific error(s) that caused point deductions.
+3. **Key Concept to Review**: Identify the underlying concept or technique they need to strengthen.
+4. **Guided Correction**: Walk through how to fix the error and arrive at the correct answer.
+5. **Encouragement**: End with a motivational note recognising their partial progress."""
+        else:
+            verdict_context = "The student's answer is marked as INCORRECT (score < 50%)."
+            feedback_instructions = """Your task is to write detailed, constructive feedback.
+
+Since the student is INCORRECT:
+1. **What Went Wrong**: Pinpoint the specific error(s) in their approach.
+2. **Key Concept**: Identify the underlying concept to revisit.
+3. **Guidance**: Walk through the correct approach step-by-step.
+4. **Encouragement**: End with a motivational note."""
 
         prompt = f"""You are an experienced, encouraging math tutor reviewing a student's submission.
 {verdict_context}
@@ -108,18 +144,7 @@ Problem:
 Similar worked examples for context:
 {similar_context}
 
-Your task is to write detailed, constructive feedback.
-
-If the student is CORRECT:
-1. **Affirmation**: Confirm they got it right and briefly mention what they did well.
-2. **Deepen Understanding**: Suggest a way to verify the result or mention a related advanced concept (optional).
-3. **Challenge**: Briefly ask "What if..." to push their thinking.
-
-If the student is INCORRECT:
-1. **What Went Wrong**: Pinpoint the specific error(s).
-2. **Key Concept**: Identify the underlying concept to revisit.
-3. **Guidance**: Walk through the correct approach step-by-step.
-4. **Encouragement**: End with a motivational note.
+{feedback_instructions}
 
 Write in clear, friendly language suitable for a student. Be thorough."""
 

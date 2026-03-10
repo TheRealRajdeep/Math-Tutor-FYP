@@ -14,10 +14,18 @@ from services.grading_service import (
 try:
     from services.tutor_service import generate_diagnostic_feedback
 except ImportError:
-    # Fallback if rename hasn't propagated or for some reason fails
     from services.tutor_service import generate_wrong_answer_feedback as generate_diagnostic_feedback
 
 router = APIRouter()
+
+
+def get_verdict(percentage: float) -> str:
+    """Map a percentage score to a three-state verdict."""
+    if percentage >= 90:
+        return "correct"
+    if percentage >= 50:
+        return "partially_correct"
+    return "incorrect"
 
 
 @router.post("/grade_submission/{submission_id}")
@@ -184,8 +192,11 @@ def grade_submission(submission_id: int, problem_id: Optional[int] = None):
                             percentage = 0.0
                             
                     final_score = percentage / 100.0
+                    verdict = get_verdict(percentage)
+                    # answer_is_correct reflects the strict threshold (>=90%)
+                    answer_is_correct_flag = verdict == "correct"
 
-                    # 6. Feedback Generation (Always)
+                    # 6. Feedback Generation (always — even for correct, partial feedback helps)
                     try:
                         hint_provided = generate_diagnostic_feedback(
                             problem=problem_text or "",
@@ -193,7 +204,8 @@ def grade_submission(submission_id: int, problem_id: Optional[int] = None):
                             correct_answer=correct_answer or "",
                             student_solution=structured_steps,
                             ref_solution=ref_solution or "",
-                            is_correct=answer_correct, # Pass the boolean verdict
+                            is_correct=answer_is_correct_flag,
+                            verdict=verdict,
                         )
                     except Exception as e:
                         logger.error(f"Feedback generation failed: {e}")
@@ -214,7 +226,7 @@ def grade_submission(submission_id: int, problem_id: Optional[int] = None):
                             submission_id,
                             problem_id,
                             ar.get("confidence"),
-                            ar.get("is_correct"),
+                            answer_is_correct_flag,
                             sr.get("logical_score"),
                             sr.get("first_error_step_index"),
                             sr.get("error_summary"),
@@ -264,6 +276,7 @@ def get_results(submission_id: int):
                 "error_summary": r[6],
                 "hint_provided": r[7],
                 "final_score": r[8],
+                "verdict": get_verdict(float(r[4]) if r[4] is not None else 0.0),
             }
             for r in rows
         ]
