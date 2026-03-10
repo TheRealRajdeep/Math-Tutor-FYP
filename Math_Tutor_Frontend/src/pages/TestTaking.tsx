@@ -218,26 +218,26 @@ const TestTaking = () => {
   const handleSubmit = async () => {
     if (!testId || !test || selectedFiles.length === 0 || !user) return;
 
+    const currentProblemId = test.problems[currentProblemIndex].problem_id;
+    const isResubmission = submittedProblems.has(currentProblemId);
+
     setSubmitting(true);
     try {
       const studentId = `${user.id}`;
       await api.submitSolution(
         parseInt(testId),
-        test.problems[currentProblemIndex].problem_id,
+        currentProblemId,
         studentId,
         selectedFiles
       );
 
       // Mark this problem as submitted
-      setSubmittedProblems((prev) => new Set(prev).add(test.problems[currentProblemIndex].problem_id));
+      setSubmittedProblems((prev) => new Set(prev).add(currentProblemId));
+      setSelectedFiles([]);
 
-      // Move to next problem or finish
-      if (currentProblemIndex < test.problems.length - 1) {
+      // Only auto-advance to next problem on first-time submission
+      if (!isResubmission && currentProblemIndex < test.problems.length - 1) {
         setCurrentProblemIndex((prev) => prev + 1);
-        setSelectedFiles([]);
-      } else {
-        // All problems submitted, show message
-        setSelectedFiles([]);
       }
     } catch (error) {
       console.error('Failed to submit:', error);
@@ -447,17 +447,22 @@ const TestTaking = () => {
 
                     <div className="space-y-3">
                       <label className="text-sm font-medium block">Upload Solution Images</label>
+                      {isCurrentProblemSubmitted && (
+                        <p className="text-sm text-green-600 dark:text-green-400">
+                          ✓ Solution already submitted — upload new images below to replace it
+                        </p>
+                      )}
                       <div
                         className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 p-6 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
-                        onClick={() => !isCurrentProblemSubmitted && fileInputRef.current?.click()}
+                        onClick={() => fileInputRef.current?.click()}
                         onKeyDown={(e) => {
-                          if ((e.key === 'Enter' || e.key === ' ') && !isCurrentProblemSubmitted) {
+                          if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             fileInputRef.current?.click();
                           }
                         }}
                         role="button"
-                        tabIndex={isCurrentProblemSubmitted ? -1 : 0}
+                        tabIndex={0}
                         aria-label="Add solution photos"
                       >
                         <ImagePlus className="h-8 w-8 text-muted-foreground" />
@@ -469,7 +474,6 @@ const TestTaking = () => {
                           accept="image/*"
                           multiple
                           onChange={handleFileSelect}
-                          disabled={isCurrentProblemSubmitted}
                           className="hidden"
                         />
                       </div>
@@ -495,8 +499,7 @@ const TestTaking = () => {
                                     e.stopPropagation();
                                     handleRemoveFile(idx);
                                   }}
-                                  disabled={isCurrentProblemSubmitted}
-                                  className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:cursor-not-allowed"
+                                  className="absolute top-1 right-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
                                   aria-label={`Remove ${file.name}`}
                                 >
                                   <X className="h-3 w-3" />
@@ -509,19 +512,18 @@ const TestTaking = () => {
                           </div>
                         </div>
                       )}
-                      {isCurrentProblemSubmitted && (
-                        <p className="text-sm text-green-600 dark:text-green-400">
-                          ✓ Solution submitted for this problem
-                        </p>
-                      )}
                     </div>
 
                     <div className="flex gap-2">
                       <Button
                         onClick={handleSubmit}
-                        disabled={selectedFiles.length === 0 || submitting || isCurrentProblemSubmitted}
+                        disabled={selectedFiles.length === 0 || submitting}
                       >
-                        {submitting ? 'Submitting...' : isCurrentProblemSubmitted ? 'Already Submitted' : 'Submit Solution'}
+                        {submitting
+                          ? 'Submitting...'
+                          : isCurrentProblemSubmitted
+                          ? 'Re-submit Solution'
+                          : 'Submit Solution'}
                       </Button>
                       {currentProblemIndex > 0 && (
                         <Button variant="outline" onClick={() => setCurrentProblemIndex((prev) => prev - 1)}>
