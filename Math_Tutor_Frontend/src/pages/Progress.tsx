@@ -143,9 +143,11 @@ function StatCard({
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        <div className="flex items-center justify-between gap-3 space-y-0 pb-2">
+          <p className="min-w-0 text-sm font-medium text-muted-foreground truncate">
+            {label}
+          </p>
+          <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary">
             {icon}
           </div>
         </div>
@@ -194,12 +196,17 @@ function DomainCard({ domain }: { domain: DomainStat }) {
         'border-l-4 bg-opacity-30'
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm">{domain.name}</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 font-semibold text-sm truncate">
+            {domain.name}
+          </span>
           <TrendIcon trend={domain.trend} />
         </div>
-        <Badge variant="outline" className={cn('capitalize', colors.badge)}>
+        <Badge
+          variant="outline"
+          className={cn('shrink-0 capitalize', colors.badge)}
+        >
           {domain.strength_level}
         </Badge>
       </div>
@@ -329,13 +336,27 @@ const Progress = () => {
     profile &&
     (profile.overall.total_attempted > 0 || profile.domains.length > 0);
 
-  // Radar data normalised to 0–100
-  const radarData =
-    profile?.domains.map((d) => ({
-      domain: d.name.length > 14 ? d.name.slice(0, 13) + '…' : d.name,
-      score: d.avg_score,
-      fullMark: 100,
-    })) ?? [];
+  // Radar data (keep it readable): 5 weakest + 5 strongest (max 10)
+  const radarData = (() => {
+    const domains = profile?.domains ?? [];
+    if (domains.length === 0) return [];
+
+    const byScoreAsc = [...domains].sort((a, b) => a.avg_score - b.avg_score);
+    const sliceSize = Math.min(5, Math.ceil(domains.length / 2));
+    const weakest = byScoreAsc.slice(0, sliceSize);
+    const strongest = byScoreAsc.slice(-sliceSize);
+
+    const picked = new Map<string, DomainStat>();
+    for (const d of [...weakest, ...strongest]) picked.set(d.name, d);
+
+    return Array.from(picked.values())
+      .sort((a, b) => b.avg_score - a.avg_score)
+      .map((d) => ({
+        domain: d.name.length > 14 ? d.name.slice(0, 13) + '…' : d.name,
+        score: d.avg_score,
+        fullMark: 100,
+      }));
+  })();
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -393,7 +414,7 @@ const Progress = () => {
           </div>
 
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+            <TabsList className="w-full max-w-[400px] h-10 p-1">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
@@ -485,7 +506,7 @@ const Progress = () => {
                   <CardHeader>
                     <CardTitle>Skill Radar</CardTitle>
                     <CardDescription>
-                      Performance across different domains.
+                      Top strengths and weaknesses (up to 10 domains).
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -553,21 +574,24 @@ const Progress = () => {
                         .map((d) => (
                           <div
                             key={d.name}
-                            className="flex items-center justify-between p-3 rounded-lg border bg-muted/40"
+                            className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-muted/40"
                           >
-                            <div className="space-y-1">
-                              <p className="font-medium text-sm">{d.name}</p>
+                            <div className="min-w-0 space-y-1">
+                              <p className="min-w-0 font-medium text-sm truncate">
+                                {d.name}
+                              </p>
                               <div className="text-xs text-muted-foreground">
                                 Score: {d.avg_score}%
                               </div>
                             </div>
                             <Badge
                               variant="outline"
-                              className={
+                              className={cn(
+                                'shrink-0',
                                 d.strength_level === 'weak'
                                   ? 'border-red-200 text-red-700 bg-red-50'
                                   : 'border-amber-200 text-amber-700 bg-amber-50'
-                              }
+                              )}
                             >
                               {d.strength_level}
                             </Badge>
@@ -579,15 +603,14 @@ const Progress = () => {
                         <p className="text-sm font-medium mb-3">
                           Common Error Patterns
                         </p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2">
                           {profile.recent_error_themes.map((theme, i) => (
-                            <Badge
+                            <div
                               key={i}
-                              variant="secondary"
-                              className="text-xs"
+                              className="w-full rounded-md border bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap wrap-break-word"
                             >
                               {theme}
-                            </Badge>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -619,17 +642,19 @@ const Progress = () => {
                         .map((d) => (
                           <div
                             key={d.name}
-                            className="flex items-center justify-between p-3 rounded-lg border border-emerald-100 bg-emerald-50/30"
+                            className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-muted/40"
                           >
-                            <div className="space-y-1">
-                              <p className="font-medium text-sm">{d.name}</p>
+                            <div className="min-w-0 space-y-1">
+                              <p className="min-w-0 font-medium text-sm truncate">
+                                {d.name}
+                              </p>
                               <div className="text-xs text-muted-foreground">
                                 Score: {d.avg_score}%
                               </div>
                             </div>
                             <Badge
                               variant="outline"
-                              className="border-emerald-200 text-emerald-700 bg-emerald-50"
+                              className="shrink-0 border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-900 dark:text-emerald-200 dark:bg-emerald-950/30"
                             >
                               Strong
                             </Badge>
@@ -660,8 +685,8 @@ const Progress = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border">
-                    <table className="w-full text-sm">
+                  <div className="rounded-md border overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50 transition-colors">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
@@ -698,7 +723,9 @@ const Progress = () => {
                               className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
                             >
                               <td className="p-4 align-middle font-medium">
-                                {t.label}
+                                <div className="max-w-[360px] truncate">
+                                  {t.label}
+                                </div>
                               </td>
                               <td className="p-4 align-middle text-muted-foreground">
                                 {t.date || '—'}
