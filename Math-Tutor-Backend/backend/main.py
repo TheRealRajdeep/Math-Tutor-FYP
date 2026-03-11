@@ -24,6 +24,7 @@ from routes.rag import tutor
 from routes.mock_test import mock_test_generation as mock_test
 from routes.submissions import upload as submissions_upload
 from routes.submissions import grading as submissions_grading
+from routes.submissions import list as submissions_list
 from auth import routes as auth_routes
 from routes import curriculum, practice, analytics, practice_sessions, recommendations, teaching
 
@@ -72,6 +73,7 @@ app.include_router(mock_test.router, prefix="/api")
 app.include_router(tutor.router, prefix="/api")
 app.include_router(submissions_upload.router, prefix="/api")
 app.include_router(submissions_grading.router, prefix="/api")
+app.include_router(submissions_list.router, prefix="/api")
 app.include_router(auth_routes.router)
 app.include_router(curriculum.router, prefix="/api")
 app.include_router(practice.router, prefix="/api")

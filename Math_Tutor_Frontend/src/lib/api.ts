@@ -33,7 +33,7 @@ export interface Submission {
   test_id: number;
   student_id: string;
   submitted_at: string;
-  status: 'pending' | 'processing' | 'graded';
+  status: 'pending' | 'correct' | 'partially_correct' | 'incorrect';
 }
 
 export type Verdict = 'correct' | 'partially_correct' | 'incorrect';
@@ -369,6 +369,10 @@ export const api = {
 
   getSubmissionResults: async (submissionId: number): Promise<GradingResult[]> => {
     return apiRequest<GradingResult[]>(`/api/submission/${submissionId}/results`);
+  },
+
+  getMySubmissions: async (token?: string | null): Promise<Submission[]> => {
+    return apiRequest<Submission[]>('/api/submissions/my', {}, token);
   },
 
   // Tutor (RAG)
